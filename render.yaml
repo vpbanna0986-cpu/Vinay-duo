@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: vinay-duo-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: CHAT_TTL_SECONDS
+        value: 7200
+      - key: CLEANUP_INTERVAL_SECONDS
+        value: 300
