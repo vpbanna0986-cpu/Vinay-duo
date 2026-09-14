@@ -15,5 +15,6 @@ router.use('/rooms',      require('./room.routes'));
 router.use('/users',      require('./user.routes'));
 router.use('/chat',       require('./chat.routes'));
 router.use('/challenges', require('./challenge.routes'));
+router.use('/games',      require('./game.routes'));
 
 module.exports = router;
