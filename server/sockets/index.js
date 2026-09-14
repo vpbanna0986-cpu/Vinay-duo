@@ -6,6 +6,7 @@ const { registerPresence } = require('./presence');
 const { registerRoomChannel } = require('./roomChannel');
 const { registerTyping } = require('./typing');
 const { registerChat } = require('./chat');
+const { registerChallenge } = require('./challenge');
 
 function initSockets(server) {
   const io = new Server(server, {
@@ -29,6 +30,7 @@ function initSockets(server) {
     registerRoomChannel(io, socket);
     registerTyping(io, socket);
     registerChat(io, socket);
+    registerChallenge(io, socket);
 
     socket.on('disconnect', (reason) => {
       logger.info(`socket disconnected: user=${socket.user.username} reason=${reason}`);
