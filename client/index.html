@@ -17,9 +17,6 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  ANIMATED BACKGROUND LAYER                  -->
-<!-- ═══════════════════════════════════════════ -->
 <div class="bg-layer">
   <div class="bg-gradient"></div>
   <div class="bg-orbs">
@@ -30,9 +27,6 @@
   <div class="bg-noise"></div>
 </div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  SPLASH SCREEN                              -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="splash" class="splash">
   <div class="splash-logo">
     <svg viewBox="0 0 120 120" class="logo-mark" aria-hidden="true">
@@ -56,37 +50,22 @@
   <p class="splash-tag">Made by <b>VP</b> — Vinay Pratap</p>
 </div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  TOAST CONTAINER                            -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="toasts" class="toast-wrap"></div>
-
-<!-- ═══════════════════════════════════════════ -->
-<!--  MODAL CONTAINER                            -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="modal-root" class="modal-root" aria-hidden="true"></div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  NETWORK BANNER                             -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="net-banner" class="net-banner" aria-hidden="true">
   <span class="net-dot"></span>
   <span class="net-text">Reconnecting…</span>
 </div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  MAIN APP                                   -->
-<!-- ═══════════════════════════════════════════ -->
 <main id="app" class="app">
 
-  <!-- ───── AUTH SCREEN ───── -->
+  <!-- AUTH -->
   <section id="screen-auth" class="screen screen-auth">
     <div class="auth-wrap">
       <div class="auth-card">
-
         <div class="auth-brand">
           <svg viewBox="0 0 120 120" class="brand-mark">
-            <use href="#logoGrad"/>
             <path d="M15 85 L45 25 L60 55 L75 25 L105 85" fill="none" stroke="url(#logoGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <h2>VINAY<span>DUO</span></h2>
@@ -98,7 +77,6 @@
           <button class="auth-tab" data-auth-tab="signup">Sign Up</button>
         </div>
 
-        <!-- Login form -->
         <form id="form-login" class="auth-form active" autocomplete="on">
           <label class="field">
             <span class="field-label">Username</span>
@@ -115,7 +93,6 @@
           <p class="auth-error" data-error="login" hidden></p>
         </form>
 
-        <!-- Signup form -->
         <form id="form-signup" class="auth-form" autocomplete="on">
           <label class="field">
             <span class="field-label">Display Name</span>
@@ -141,7 +118,7 @@
     </div>
   </section>
 
-  <!-- ───── ROOM SETUP SCREEN ───── -->
+  <!-- ROOM -->
   <section id="screen-room" class="screen screen-room" hidden>
     <div class="room-wrap">
       <header class="room-top">
@@ -158,7 +135,6 @@
       </header>
 
       <div class="room-cards">
-
         <div class="room-card room-card-create">
           <div class="room-card-glow"></div>
           <div class="room-card-icon">
@@ -195,17 +171,15 @@
           </form>
           <p class="room-error" data-error="room" hidden></p>
         </div>
-
       </div>
 
       <p class="room-foot">Made by <b>VP</b> · VINAY DUO</p>
     </div>
   </section>
 
-  <!-- ───── MAIN DUO APP ───── -->
+  <!-- MAIN -->
   <section id="screen-main" class="screen screen-main" hidden>
 
-    <!-- Top bar -->
     <header class="topbar">
       <div class="topbar-left">
         <svg viewBox="0 0 120 120" class="topbar-logo">
@@ -228,10 +202,8 @@
       </div>
     </header>
 
-    <!-- Views -->
     <div class="views">
 
-      <!-- CHAT VIEW -->
       <section class="view view-chat active" data-view="chat">
         <div class="chat-scroll" id="chat-scroll">
           <div class="chat-day-sep"><span>Last 2 hours</span></div>
@@ -242,7 +214,7 @@
           </div>
         </div>
 
-        <form id="form-chat" class="chat-compose">
+        <form id="form-chat" class="chat-compose" autocomplete="off">
           <button type="button" class="compose-icon" data-action="chat-emoji" aria-label="Emoji">😊</button>
           <div class="chat-input-wrap">
             <input type="text" name="message" placeholder="Message your duo…" autocomplete="off" maxlength="2000" />
@@ -254,7 +226,6 @@
         </form>
       </section>
 
-      <!-- GAMES VIEW -->
       <section class="view view-games" data-view="games">
         <div class="games-head">
           <h2>Games</h2>
@@ -268,12 +239,9 @@
           <button class="chip" data-cat="versus">⚔️ Versus</button>
           <button class="chip" data-cat="social">💬 Social</button>
         </div>
-        <div class="games-grid" id="games-grid">
-          <!-- Injected by JS -->
-        </div>
+        <div class="games-grid" id="games-grid"></div>
       </section>
 
-      <!-- NOTES VIEW -->
       <section class="view view-notes" data-view="notes">
         <div class="notes-head">
           <h2>Shared Notes</h2>
@@ -282,21 +250,15 @@
             New
           </button>
         </div>
-        <div class="notes-list" id="notes-list">
-          <!-- Injected -->
-        </div>
+        <div class="notes-list" id="notes-list"></div>
       </section>
 
-      <!-- STATS VIEW -->
       <section class="view view-stats" data-view="stats">
-        <div class="stats-wrap" id="stats-wrap">
-          <!-- Injected -->
-        </div>
+        <div class="stats-wrap" id="stats-wrap"></div>
       </section>
 
     </div>
 
-    <!-- Bottom navigation -->
     <nav class="nav" data-nav>
       <button class="nav-btn active" data-nav-view="chat">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -320,14 +282,8 @@
 
 </main>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  GAME OVERLAY (injected by JS)              -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="game-overlay" class="game-overlay" aria-hidden="true"></div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!--  SCRIPTS                                    -->
-<!-- ═══════════════════════════════════════════ -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/socket.js"></script>
@@ -338,6 +294,7 @@
 <script src="/js/games.js"></script>
 <script src="/js/notes.js"></script>
 <script src="/js/stats.js"></script>
+<script src="/js/gameUI.js"></script>
 <script src="/js/app.js"></script>
 </body>
-  </html>
+            </html>
