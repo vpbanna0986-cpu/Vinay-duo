@@ -1,1 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0a0f" />
+<title>VINAY DUO — Challenge & Chat</title>
+<meta name="description" content="VINAY DUO — Private 2-person duo app with realtime chat and 29 mini games. Made by VP." />
 
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="/css/main.css" />
+<link rel="stylesheet" href="/css/components.css" />
+<link rel="stylesheet" href="/css/animations.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  ANIMATED BACKGROUND LAYER                  -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="bg-layer">
+  <div class="bg-gradient"></div>
+  <div class="bg-orbs">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+  </div>
+  <div class="bg-noise"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  SPLASH SCREEN                              -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="splash" class="splash">
+  <div class="splash-logo">
+    <svg viewBox="0 0 120 120" class="logo-mark" aria-hidden="true">
+      <defs>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#a78bfa"/>
+          <stop offset="50%" stop-color="#8b5cf6"/>
+          <stop offset="100%" stop-color="#06b6d4"/>
+        </linearGradient>
+        <filter id="logoGlow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path d="M15 85 L45 25 L60 55 L75 25 L105 85" fill="none" stroke="url(#logoGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#logoGlow)"/>
+    </svg>
+    <h1 class="splash-title">VINAY<span>DUO</span></h1>
+    <p class="splash-sub">Challenge &amp; Chat</p>
+  </div>
+  <div class="splash-loader"><span></span></div>
+  <p class="splash-tag">Made by <b>VP</b> — Vinay Pratap</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  TOAST CONTAINER                            -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="toasts" class="toast-wrap"></div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  MODAL CONTAINER                            -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="modal-root" class="modal-root" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  NETWORK BANNER                             -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="net-banner" class="net-banner" aria-hidden="true">
+  <span class="net-dot"></span>
+  <span class="net-text">Reconnecting…</span>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  MAIN APP                                   -->
+<!-- ═══════════════════════════════════════════ -->
+<main id="app" class="app">
+
+  <!-- ───── AUTH SCREEN ───── -->
+  <section id="screen-auth" class="screen screen-auth">
+    <div class="auth-wrap">
+      <div class="auth-card">
+
+        <div class="auth-brand">
+          <svg viewBox="0 0 120 120" class="brand-mark">
+            <use href="#logoGrad"/>
+            <path d="M15 85 L45 25 L60 55 L75 25 L105 85" fill="none" stroke="url(#logoGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h2>VINAY<span>DUO</span></h2>
+          <p>Two friends. One room. Infinite games.</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-tab="login">Login</button>
+          <button class="auth-tab" data-auth-tab="signup">Sign Up</button>
+        </div>
+
+        <!-- Login form -->
+        <form id="form-login" class="auth-form active" autocomplete="on">
+          <label class="field">
+            <span class="field-label">Username</span>
+            <input type="text" name="username" placeholder="your_username" autocomplete="username" required minlength="3" maxlength="32" />
+          </label>
+          <label class="field">
+            <span class="field-label">Password</span>
+            <input type="password" name="password" placeholder="••••••••" autocomplete="current-password" required minlength="8" />
+          </label>
+          <button type="submit" class="btn btn-primary btn-block">
+            <span class="btn-text">Sign In</span>
+            <span class="btn-loader"></span>
+          </button>
+          <p class="auth-error" data-error="login" hidden></p>
+        </form>
+
+        <!-- Signup form -->
+        <form id="form-signup" class="auth-form" autocomplete="on">
+          <label class="field">
+            <span class="field-label">Display Name</span>
+            <input type="text" name="displayName" placeholder="Vinay" required minlength="1" maxlength="64" />
+          </label>
+          <label class="field">
+            <span class="field-label">Username</span>
+            <input type="text" name="username" placeholder="vinay_123" autocomplete="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_.]+" title="Letters, numbers, _ and . only" />
+          </label>
+          <label class="field">
+            <span class="field-label">Password</span>
+            <input type="password" name="password" placeholder="At least 8 characters" autocomplete="new-password" required minlength="8" maxlength="128" />
+          </label>
+          <button type="submit" class="btn btn-primary btn-block">
+            <span class="btn-text">Create Account</span>
+            <span class="btn-loader"></span>
+          </button>
+          <p class="auth-error" data-error="signup" hidden></p>
+        </form>
+
+        <p class="auth-foot">VINAY DUO · Made by <b>VP</b></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── ROOM SETUP SCREEN ───── -->
+  <section id="screen-room" class="screen screen-room" hidden>
+    <div class="room-wrap">
+      <header class="room-top">
+        <div class="room-user">
+          <div class="avatar avatar-sm" data-me-avatar>?</div>
+          <div>
+            <p class="room-hi">Hi, <b data-me-name>friend</b></p>
+            <p class="room-hint">Set up your duo room</p>
+          </div>
+        </div>
+        <button class="icon-btn" data-action="logout" title="Logout" aria-label="Logout">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </header>
+
+      <div class="room-cards">
+
+        <div class="room-card room-card-create">
+          <div class="room-card-glow"></div>
+          <div class="room-card-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Create Room</h3>
+          <p>Start a private duo room. Get a 6-digit code to share with your friend.</p>
+          <button class="btn btn-primary btn-block" data-action="create-room">
+            <span class="btn-text">Create Duo Room</span>
+            <span class="btn-loader"></span>
+          </button>
+        </div>
+
+        <div class="room-card room-card-join">
+          <div class="room-card-glow"></div>
+          <div class="room-card-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3>Join Room</h3>
+          <p>Have a code from your friend? Enter it to join instantly.</p>
+          <form id="form-join" class="join-form">
+            <div class="code-inputs" data-code-inputs>
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+              <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            </div>
+            <button type="submit" class="btn btn-ghost btn-block">
+              <span class="btn-text">Join Duo Room</span>
+              <span class="btn-loader"></span>
+            </button>
+          </form>
+          <p class="room-error" data-error="room" hidden></p>
+        </div>
+
+      </div>
+
+      <p class="room-foot">Made by <b>VP</b> · VINAY DUO</p>
+    </div>
+  </section>
+
+  <!-- ───── MAIN DUO APP ───── -->
+  <section id="screen-main" class="screen screen-main" hidden>
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <svg viewBox="0 0 120 120" class="topbar-logo">
+          <path d="M15 85 L45 25 L60 55 L75 25 L105 85" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <h1 class="topbar-title">VINAY<span>DUO</span></h1>
+          <p class="topbar-code">Room · <b data-room-code>------</b></p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="member-chip" data-member-chip>
+          <div class="avatar avatar-xs" data-other-avatar>?</div>
+          <span class="presence-dot" data-other-presence></span>
+          <span data-other-name>Friend</span>
+        </div>
+        <button class="icon-btn" data-action="show-room-info" title="Room Info" aria-label="Room Info">
+          <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Views -->
+    <div class="views">
+
+      <!-- CHAT VIEW -->
+      <section class="view view-chat active" data-view="chat">
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="chat-day-sep"><span>Last 2 hours</span></div>
+          <div id="chat-list" class="chat-list"></div>
+          <div id="chat-typing" class="chat-typing" hidden>
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <em data-typing-name>Friend</em> is typing…
+          </div>
+        </div>
+
+        <form id="form-chat" class="chat-compose">
+          <button type="button" class="compose-icon" data-action="chat-emoji" aria-label="Emoji">😊</button>
+          <div class="chat-input-wrap">
+            <input type="text" name="message" placeholder="Message your duo…" autocomplete="off" maxlength="2000" />
+            <button type="button" class="compose-icon compose-attach" data-action="chat-attach" aria-label="Attach">📎</button>
+          </div>
+          <button type="submit" class="compose-send" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- GAMES VIEW -->
+      <section class="view view-games" data-view="games">
+        <div class="games-head">
+          <h2>Games</h2>
+          <p>Challenge your duo · 29 games</p>
+        </div>
+        <div class="games-filters" data-game-filters>
+          <button class="chip active" data-cat="all">All</button>
+          <button class="chip" data-cat="speed">⚡ Speed</button>
+          <button class="chip" data-cat="memory">🧠 Memory</button>
+          <button class="chip" data-cat="word">✍️ Word</button>
+          <button class="chip" data-cat="versus">⚔️ Versus</button>
+          <button class="chip" data-cat="social">💬 Social</button>
+        </div>
+        <div class="games-grid" id="games-grid">
+          <!-- Injected by JS -->
+        </div>
+      </section>
+
+      <!-- NOTES VIEW -->
+      <section class="view view-notes" data-view="notes">
+        <div class="notes-head">
+          <h2>Shared Notes</h2>
+          <button class="btn btn-sm btn-primary" data-action="new-note">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+            New
+          </button>
+        </div>
+        <div class="notes-list" id="notes-list">
+          <!-- Injected -->
+        </div>
+      </section>
+
+      <!-- STATS VIEW -->
+      <section class="view view-stats" data-view="stats">
+        <div class="stats-wrap" id="stats-wrap">
+          <!-- Injected -->
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Bottom navigation -->
+    <nav class="nav" data-nav>
+      <button class="nav-btn active" data-nav-view="chat">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Chat</span>
+      </button>
+      <button class="nav-btn" data-nav-view="games">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Games</span>
+      </button>
+      <button class="nav-btn" data-nav-view="notes">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Notes</span>
+      </button>
+      <button class="nav-btn" data-nav-view="stats">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 3v18h18 M7 15l3-3 4 4 6-8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Stats</span>
+      </button>
+    </nav>
+
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  GAME OVERLAY (injected by JS)              -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="game-overlay" class="game-overlay" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  SCRIPTS                                    -->
+<!-- ═══════════════════════════════════════════ -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/socket.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/room.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/games.js"></script>
+<script src="/js/notes.js"></script>
+<script src="/js/stats.js"></script>
+<script src="/js/app.js"></script>
+</body>
+  </html>
