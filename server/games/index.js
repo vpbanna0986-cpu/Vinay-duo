@@ -14,7 +14,14 @@ registry.register('odd_one_out', require('./odd_one_out'));
 registry.register('pattern_complete', require('./pattern_complete'));
 registry.register('emoji_memory', require('./emoji_memory'));
 
-// ── Word / Creative ── (next batch)
+// ── Word / Creative ──
+registry.register('word_scramble', require('./word_scramble'));
+registry.register('emoji_guess', require('./emoji_guess'));
+registry.register('guess_word', require('./guess_word'));
+registry.register('describe_guess', require('./describe_guess'));
+registry.register('guess_sound', require('./guess_sound'));
+registry.register('draw_guess', require('./draw_guess'));
+
 // ── Head-to-Head ── (next batch)
 // ── Social / Random ── (next batch)
 
