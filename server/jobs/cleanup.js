@@ -15,8 +15,16 @@ async function runOnce() {
     const r3 = await db.query(`DELETE FROM messages WHERE expires_at < NOW()`);
     const expiredChallenges = await challengeService.expireStale();
 
-    if (r1.rowCount || r2.rowCount || r3.rowCount || expiredChallenges) {
-      logger.info(`cleanup: reactions=${r1.rowCount} media=${r2.rowCount} messages=${r3.rowCount} challenges_expired=${expiredChallenges}`);
+    // Cancel stale waiting/countdown sessions older than 5 min
+    const stale = await db.query(
+      `UPDATE game_sessions
+          SET status='cancelled', ended_at=NOW()
+        WHERE status IN ('waiting','countdown')
+          AND created_at < NOW() - INTERVAL '5 minutes'`
+    );
+
+    if (r1.rowCount || r2.rowCount || r3.rowCount || expiredChallenges || stale.rowCount) {
+      logger.info(`cleanup: reactions=${r1.rowCount} media=${r2.rowCount} messages=${r3.rowCount} challenges_expired=${expiredChallenges} stale_sessions=${stale.rowCount}`);
     }
   } catch (e) {
     logger.error('cleanup failed:', e.message);
