@@ -22,7 +22,15 @@ registry.register('describe_guess', require('./describe_guess'));
 registry.register('guess_sound', require('./guess_sound'));
 registry.register('draw_guess', require('./draw_guess'));
 
-// ── Head-to-Head ── (next batch)
+// ── Head-to-Head ──
+registry.register('who_knows_who', require('./who_knows_who'));
+registry.register('rps', require('./rps'));
+registry.register('tictactoe', require('./tictactoe'));
+registry.register('connect_four', require('./connect_four'));
+registry.register('number_battle', require('./number_battle'));
+registry.register('higher_lower', require('./higher_lower'));
+registry.register('quiz_battle', require('./quiz_battle'));
+
 // ── Social / Random ── (next batch)
 
 module.exports = registry;
