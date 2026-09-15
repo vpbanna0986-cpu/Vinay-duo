@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Universal Game Engine
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 const { EventEmitter } = require('events');
 const logger = require('../utils/logger');
 
@@ -11,11 +16,6 @@ const STATES = {
   CANCELLED: 'cancelled'
 };
 
-/**
- * Universal Game Engine
- * One session = one live match between 2 players.
- * Games register handlers and react to lifecycle events.
- */
 class GameEngine extends EventEmitter {
   constructor({ sessionId, gameKey, playerAId, playerBId, definition, io }) {
     super();
@@ -37,9 +37,6 @@ class GameEngine extends EventEmitter {
 
     this.timers = new Set();
     this.closed = false;
-
-    // Game-specific state
-    this.state_blob = {};
   }
 
   toJSON() {
@@ -82,9 +79,9 @@ class GameEngine extends EventEmitter {
     this.state = STATES.READY;
     this.emitToPlayers('game:state', this.toJSON());
 
-    // Countdown 3-2-1-GO
     this.state = STATES.COUNTDOWN;
     const countdownMs = 3000;
+
     this.emitToPlayers('game:countdown', {
       sessionId: this.sessionId,
       gameKey: this.gameKey,
@@ -100,6 +97,7 @@ class GameEngine extends EventEmitter {
     this.state = STATES.PLAYING;
     this.startedAt = Date.now();
     this.round = 1;
+
     this.emitToPlayers('game:playing', {
       sessionId: this.sessionId,
       gameKey: this.gameKey,
@@ -108,7 +106,6 @@ class GameEngine extends EventEmitter {
       totalRounds: this.totalRounds
     });
 
-    // Delegate to game definition
     try {
       await this.definition.onStart(this);
     } catch (e) {
@@ -117,7 +114,6 @@ class GameEngine extends EventEmitter {
     }
   }
 
-  // Called by game when a round is complete
   roundComplete() {
     if (this.state !== STATES.PLAYING) return;
     this.round++;
@@ -129,19 +125,19 @@ class GameEngine extends EventEmitter {
         round: this.round,
         totalRounds: this.totalRounds
       });
-      this.definition.onRoundStart?.(this);
+      if (this.definition.onRoundStart) {
+        try { this.definition.onRoundStart(this); } catch (e) { logger.error(e.message); }
+      }
     }
   }
 
-  // Player submits an action (server-authoritative)
   async handleAction({ userId, action, payload }) {
     if (this.state !== STATES.PLAYING) return { ok: false, error: 'NOT_PLAYING' };
     if (userId !== this.playerAId && userId !== this.playerBId) {
       return { ok: false, error: 'NOT_A_PLAYER' };
     }
-    if (!this.definition.handleAction) {
-      return { ok: false, error: 'NOT_SUPPORTED' };
-    }
+    if (!this.definition.handleAction) return { ok: false, error: 'NOT_SUPPORTED' };
+
     try {
       const result = await this.definition.handleAction(this, { userId, action, payload });
       return result || { ok: true };
@@ -165,12 +161,11 @@ class GameEngine extends EventEmitter {
     this.state = STATES.FINISHING;
     this.emitToPlayers('game:state', this.toJSON());
 
-    let result;
+    let result = {};
     try {
-      result = await this.definition.onFinish?.(this) || {};
+      if (this.definition.onFinish) result = await this.definition.onFinish(this) || {};
     } catch (e) {
       logger.error(`onFinish failed [${this.gameKey}]:`, e.message);
-      result = {};
     }
 
     this.endedAt = Date.now();
