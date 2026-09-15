@@ -17,8 +17,7 @@
     myScore: 0,
     otherScore: 0,
     active: false,
-    currentGame: null,
-    container: null
+    currentGame: null
   };
 
   const registry = {};
@@ -27,9 +26,7 @@
     registry[key] = module;
   }
 
-  function getOverlay() {
-    return $('#game-overlay');
-  }
+  function getOverlay() { return $('#game-overlay'); }
 
   function openOverlay() {
     const ov = getOverlay();
@@ -54,9 +51,7 @@
       class: 'game-header',
       style: 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-1);'
     }, [
-      el('div', {
-        style: 'display:flex;align-items:center;gap:8px;flex:1;'
-      }, [
+      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;' }, [
         el('div', {
           class: 'avatar avatar-xs',
           style: 'background:' + window.VDUI.avatarColor(me?.username || 'me'),
@@ -67,15 +62,11 @@
           el('div', { style: 'font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--text-1);line-height:1;', 'data-my-score': '', text: '0' })
         ])
       ]),
-      el('div', {
-        style: 'font-family:var(--font-display);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-3);text-align:center;padding:0 10px;'
-      }, [
+      el('div', { style: 'font-family:var(--font-display);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-3);text-align:center;padding:0 10px;' }, [
         el('div', { style: 'font-weight:700;color:var(--vd-violet-lt);margin-bottom:2px;', text: state.gameTitle || 'GAME' }),
         el('div', { text: 'VS' })
       ]),
-      el('div', {
-        style: 'display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-direction:row-reverse;'
-      }, [
+      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-direction:row-reverse;' }, [
         el('div', {
           class: 'avatar avatar-xs',
           style: 'background:' + window.VDUI.avatarColor(other?.username || 'friend'),
@@ -117,10 +108,17 @@
   }
 
   async function start(launchPayload) {
-    const { sessionId, gameKey, playerAId, playerBId } = launchPayload || {};
-    if (!sessionId || !gameKey) return;
+    const { sessionId, gameKey, playerAId, playerBId, challengeId } = launchPayload || {};
 
-    // Close any modal before opening game overlay
+    // If no sessionId yet, try to fetch from challenge start
+    if (!sessionId) {
+      console.log('[gameUI] no sessionId in launch — waiting for session-created');
+      // We'll handle when session-created arrives (see bindRealtime)
+      return;
+    }
+    if (!gameKey) return;
+
+    // Close any open modal
     const modalRoot = document.getElementById('modal-root');
     if (modalRoot) {
       modalRoot.classList.remove('active');
@@ -140,13 +138,9 @@
     const game = (window.__vd_games_cache || []).find(g => g.key === gameKey);
     state.gameTitle = game?.title || gameKey;
 
-    if (playerAId === me.id) {
-      state.otherId = playerBId;
-    } else if (playerBId === me.id) {
-      state.otherId = playerAId;
-    } else {
-      state.otherId = window.__vd_other_user?.user_id;
-    }
+    if (playerAId === me.id) state.otherId = playerBId;
+    else if (playerBId === me.id) state.otherId = playerAId;
+    else state.otherId = window.__vd_other_user?.user_id;
 
     openOverlay();
     const ov = getOverlay();
@@ -160,7 +154,7 @@
       body.appendChild(el('div', { class: 'empty', style: 'margin:auto;' }, [
         el('div', { class: 'empty-icon', text: '🚧' }),
         el('div', { class: 'empty-title', text: state.gameTitle }),
-        el('div', { class: 'empty-text', text: 'UI for this game is not implemented yet. Please try another game.' })
+        el('div', { class: 'empty-text', text: 'UI for this game is coming soon.' })
       ]));
       return;
     }
@@ -256,6 +250,14 @@
     if (!window.VDSocket) return;
     const S = window.VDSocket;
 
+    // When server creates session → store it and if launch pending, mount now
+    S.on('game:session-created', (d) => {
+      console.log('[gameUI] session-created:', d);
+      if (!state.sessionId && d.sessionId) {
+        state.sessionId = d.sessionId;
+      }
+    });
+
     S.on('game:score', (d) => {
       if (!state.active) return;
       const me = window.VDAuth?.getUser();
@@ -266,9 +268,7 @@
       updateScores();
     });
 
-    S.on('game:result', (r) => {
-      onResult(r);
-    });
+    S.on('game:result', (r) => onResult(r));
 
     S.on('game:cancelled', () => {
       if (state.currentGame?.unmount) {
@@ -321,9 +321,7 @@
     });
   }
 
-  function init() {
-    bindRealtime();
-  }
+  function init() { bindRealtime(); }
 
   window.VDGameUI = {
     init,
