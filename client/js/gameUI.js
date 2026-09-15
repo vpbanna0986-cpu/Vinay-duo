@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const { $, el, toast, countdown, resultOverlay } = window.VDUI;
+  const { $, el, toast, resultOverlay } = window.VDUI;
 
   const state = {
     sessionId: null,
@@ -17,18 +17,16 @@
     myScore: 0,
     otherScore: 0,
     active: false,
-    currentGame: null,   // module for the active game
+    currentGame: null,
     container: null
   };
 
-  // ─── Available game modules ───
   const registry = {};
 
   function register(key, module) {
     registry[key] = module;
   }
 
-  // ─── Overlay helpers ───
   function getOverlay() {
     return $('#game-overlay');
   }
@@ -49,16 +47,14 @@
     setTimeout(() => { ov.innerHTML = ''; }, 300);
   }
 
-  // ─── Header (both players scores) ───
   function renderHeader() {
     const me = window.VDAuth?.getUser();
     const other = window.__vd_other_user;
-    const header = el('div', {
+    return el('div', {
       class: 'game-header',
       style: 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-1);'
     }, [
       el('div', {
-        class: 'game-score-side',
         style: 'display:flex;align-items:center;gap:8px;flex:1;'
       }, [
         el('div', {
@@ -78,7 +74,6 @@
         el('div', { text: 'VS' })
       ]),
       el('div', {
-        class: 'game-score-side',
         style: 'display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-direction:row-reverse;'
       }, [
         el('div', {
@@ -92,7 +87,6 @@
         ])
       ])
     ]);
-    return header;
   }
 
   function updateScores() {
@@ -102,17 +96,14 @@
     if (other) other.textContent = String(state.otherScore);
   }
 
-  // ─── Body area (game module renders here) ───
   function renderBody() {
-    const body = el('div', {
+    return el('div', {
       class: 'game-body',
       'data-game-body': '',
       style: 'flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;'
     });
-    return body;
   }
 
-  // ─── Footer (leave button) ───
   function renderFooter() {
     return el('div', {
       style: 'padding:12px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-top:1px solid var(--border-1);display:flex;justify-content:center;'
@@ -125,10 +116,16 @@
     ]);
   }
 
-  // ─── Start a game ───
   async function start(launchPayload) {
     const { sessionId, gameKey, playerAId, playerBId } = launchPayload || {};
     if (!sessionId || !gameKey) return;
+
+    // Close any modal before opening game overlay
+    const modalRoot = document.getElementById('modal-root');
+    if (modalRoot) {
+      modalRoot.classList.remove('active');
+      modalRoot.innerHTML = '';
+    }
 
     const me = window.VDAuth?.getUser();
     if (!me) return;
@@ -143,17 +140,14 @@
     const game = (window.__vd_games_cache || []).find(g => g.key === gameKey);
     state.gameTitle = game?.title || gameKey;
 
-    // Determine which player I am
     if (playerAId === me.id) {
       state.otherId = playerBId;
     } else if (playerBId === me.id) {
       state.otherId = playerAId;
     } else {
-      // Fallback: assume other user is the friend
       state.otherId = window.__vd_other_user?.user_id;
     }
 
-    // Open overlay
     openOverlay();
     const ov = getOverlay();
     ov.appendChild(renderHeader());
@@ -161,7 +155,6 @@
     ov.appendChild(body);
     ov.appendChild(renderFooter());
 
-    // Load the game module
     const module = registry[gameKey];
     if (!module) {
       body.appendChild(el('div', { class: 'empty', style: 'margin:auto;' }, [
@@ -172,16 +165,18 @@
       return;
     }
 
-    // Init the game module
     state.currentGame = module;
-    module.mount({
-      engine: getEngineAPI(),
-      container: body,
-      emitAction: emitAction
-    });
+    try {
+      module.mount({
+        engine: getEngineAPI(),
+        container: body,
+        emitAction: emitAction
+      });
+    } catch (e) {
+      console.error('[gameUI] mount failed', e);
+    }
   }
 
-  // ─── Public API given to game modules ───
   function getEngineAPI() {
     return {
       sessionId: state.sessionId,
@@ -199,7 +194,6 @@
     return window.VDSocket.Actions.gameAction(state.sessionId, action, payload || {});
   }
 
-  // ─── Finish & result ───
   function onResult(result) {
     if (!state.active) return;
     const me = window.VDAuth?.getUser();
@@ -214,7 +208,6 @@
     else if (result.winnerId === myId) outcome = 'win';
     else outcome = 'lose';
 
-    // Cleanup module
     if (state.currentGame?.unmount) {
       try { state.currentGame.unmount(); } catch {}
     }
@@ -228,7 +221,6 @@
       otherName: other?.display_name || 'Friend',
       emoji: outcome === 'win' ? '🏆' : outcome === 'tie' ? '🤝' : '💫',
       onRematch: () => {
-        // Trigger a new challenge for the same game
         if (window.VDSocket) {
           window.VDSocket.Actions.challengeSend(result.gameKey);
         }
@@ -239,11 +231,9 @@
       }
     });
 
-    // Refresh stats
     if (window.VDStats) window.VDStats.invalidate();
   }
 
-  // ─── Leave mid-game ───
   async function leave() {
     const ok = await window.VDUI.confirmDialog({
       title: 'Leave game?',
@@ -262,7 +252,6 @@
     state.sessionId = null;
   }
 
-  // ─── Realtime binding ───
   function bindRealtime() {
     if (!window.VDSocket) return;
     const S = window.VDSocket;
@@ -290,16 +279,6 @@
       toast('Game cancelled', 'info');
     });
 
-    // ─── Forward per-game events to the active module ───
-    const prefixes = ['game:reaction', 'game:ten', 'game:flash', 'game:memory',
-      'game:sequence', 'game:numrecall', 'game:math', 'game:odd', 'game:pattern',
-      'game:emojimem', 'game:scramble', 'game:emojiguess', 'game:guessword',
-      'game:describe', 'game:sound', 'game:draw', 'game:wkw', 'game:rps',
-      'game:ttt', 'game:c4', 'game:numbattle', 'game:hl', 'game:quiz',
-      'game:rchallenge', 'game:friendquiz', 'game:likely', 'game:tot', 'game:wyr', 'game:truth'];
-
-    // Register a wildcard-ish listener per event. Socket.IO v4 supports arbitrary events.
-    // We iterate known event names explicitly (must match server emits).
     const knownEvents = [
       'game:reaction:wait', 'game:reaction:go', 'game:reaction:tap', 'game:reaction:early',
       'game:reaction:timeout', 'game:reaction:round-result',
@@ -340,13 +319,8 @@
         }
       });
     });
-
-    S.on('game:launch', (d) => {
-      start(d);
-    });
   }
 
-  // ─── Init ───
   function init() {
     bindRealtime();
   }
