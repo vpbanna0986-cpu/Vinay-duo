@@ -87,6 +87,7 @@
   function initRealtimeNotices() {
     if (!window.VDSocket) return;
 
+    // ─── New challenge received ───
     window.VDSocket.on('challenge:new', (ch) => {
       const me = window.VDAuth?.getUser();
       if (!me) return;
@@ -97,12 +98,42 @@
       }
     });
 
+    // ─── Challenge accepted → tell both players to start the game ───
     window.VDSocket.on('challenge:updated', (ch) => {
-      if (ch.status === 'accepted') toast('Challenge accepted! Starting…', 'success');
-      else if (ch.status === 'declined') toast('Challenge declined', 'info');
-      else if (ch.status === 'cancelled') toast('Challenge cancelled', 'info');
+      if (ch.status === 'accepted') {
+        toast('Challenge accepted! Starting…', 'success');
+
+        // Whoever is on this client, initiate game:start
+        // Server will handle preventing double-start
+        const me = window.VDAuth?.getUser();
+        if (!me) return;
+
+        if (ch.challenger_id === me.id || ch.opponent_id === me.id) {
+          setTimeout(() => {
+            window.VDSocket.Actions.gameStart(ch.id).then(res => {
+              if (!res?.ok) {
+                console.warn('[app] game:start failed', res);
+                toast(res?.error || 'Failed to start game', 'error');
+              }
+            });
+          }, 400);
+        }
+      } else if (ch.status === 'declined') {
+        toast('Challenge declined', 'info');
+      } else if (ch.status === 'cancelled') {
+        toast('Challenge cancelled', 'info');
+      }
     });
 
+    // ─── Server says "game launch" → open game UI ───
+    window.VDSocket.on('game:launch', (payload) => {
+      console.log('[app] game:launch', payload);
+      if (window.VDGameUI?.start) {
+        window.VDGameUI.start(payload);
+      }
+    });
+
+    // ─── Achievement unlocked ───
     window.VDSocket.on('achievement:unlocked', (d) => {
       const list = d?.achievements || [];
       list.forEach((a, i) => {
@@ -126,8 +157,19 @@
       body,
       closable: false,
       actions: [
-        { label: 'Decline', variant: 'btn-ghost', onClick: () => window.VDSocket.Actions.challengeRespond(ch.id, false) },
-        { label: 'Accept', variant: 'btn-primary', onClick: () => { window.VDSocket.Actions.challengeRespond(ch.id, true); return true; } }
+        {
+          label: 'Decline',
+          variant: 'btn-ghost',
+          onClick: () => window.VDSocket.Actions.challengeRespond(ch.id, false)
+        },
+        {
+          label: 'Accept',
+          variant: 'btn-primary',
+          onClick: () => {
+            window.VDSocket.Actions.challengeRespond(ch.id, true);
+            return true;
+          }
+        }
       ]
     });
   }
@@ -146,7 +188,6 @@
 
     console.log('[app] booting…');
 
-    // Init all modules
     try { window.VDGameUI?.init?.(); } catch (e) { console.warn(e); }
     try { window.VDGames?.init?.(); }  catch (e) { console.warn(e); }
     try { window.VDChat?.init?.(); }   catch (e) { console.warn(e); }
@@ -154,14 +195,6 @@
     try { window.VDStats?.init?.(); }  catch (e) { console.warn(e); }
     try { window.VDAuth?.init?.(); }   catch (e) { console.warn(e); }
     try { window.VDRoom?.init?.(); }   catch (e) { console.warn(e); }
-
-    console.log('[app] modules ready:', {
-      chat: typeof window.VDChat,
-      games: typeof window.VDGames,
-      gameUI: typeof window.VDGameUI,
-      notes: typeof window.VDNotes,
-      stats: typeof window.VDStats
-    });
 
     initNav();
     initTopbar();
@@ -187,14 +220,12 @@
   function onRoomEntered(room) {
     if (window.VDSocket) window.VDSocket.connect();
 
-    // Ensure modules ready
     try { window.VDGameUI?.init?.(); } catch {}
     try { window.VDGames?.init?.(); }  catch {}
     try { window.VDChat?.init?.(); }   catch {}
     try { window.VDNotes?.init?.(); }  catch {}
     try { window.VDStats?.init?.(); }  catch {}
 
-    // Load chat history once socket connects
     setTimeout(() => {
       if (window.VDChat?.onRoomEntered) window.VDChat.onRoomEntered();
     }, 600);
