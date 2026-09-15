@@ -116,7 +116,8 @@
         const me = window.VDAuth?.getUser();
         if (!me) return;
 
-        if (ch.challenger_id === me.id || ch.opponent_id === me.id) {
+        // 🎯 ONLY the challenger starts the game (avoid double-start race)
+        if (ch.challenger_id === me.id) {
           setTimeout(() => {
             window.VDSocket.Actions.gameStart(ch.id).then(res => {
               if (!res?.ok) {
@@ -124,7 +125,7 @@
                 toast(res?.error || 'Failed to start game', 'error');
               }
             });
-          }, 300);
+          }, 500);
         }
       } else if (ch.status === 'declined') {
         closeAnyModal();
