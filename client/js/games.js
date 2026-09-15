@@ -1,117 +1,247 @@
 /* ═══════════════════════════════════════════════════════
-   VINAY DUO — Game Socket Events
+   VINAY DUO — Games Lobby Module
    Made by VP
    ═══════════════════════════════════════════════════════ */
 
-const gameService = require('../services/game.service');
-const roomService = require('../services/room.service');
-const challengeService = require('../services/challenge.service');
-const registry = require('../games/registry');
-const logger = require('../utils/logger');
+(function () {
+  'use strict';
 
-function registerGame(io, socket) {
-  const userId = socket.user.id;
+  const { $, $$, el, toast } = window.VDUI;
+  const Api = window.VDApi;
 
-  // ─── Start a game from an accepted challenge ───
-  socket.on('game:start', async (payload, ack) => {
+  const state = {
+    games: [],
+    filter: 'all',
+    loaded: false,
+    loading: false
+  };
+
+  const GAME_EMOJI = {
+    reaction_battle: '⚡',
+    ten_second: '⏱️',
+    flash_grid: '🔦',
+    memory_match: '🃏',
+    sequence_memory: '🔢',
+    number_recall: '🔟',
+    quick_math: '➗',
+    odd_one_out: '🔍',
+    pattern_complete: '🧩',
+    emoji_memory: '😀',
+    word_scramble: '🔤',
+    draw_guess: '🎨',
+    emoji_guess: '🤔',
+    guess_word: '💭',
+    describe_guess: '🗣️',
+    guess_sound: '🔊',
+    who_knows_who: '🤝',
+    rps: '✊',
+    tictactoe: '❌',
+    connect_four: '🔴',
+    number_battle: '🎯',
+    higher_lower: '📈',
+    quiz_battle: '❓',
+    random_challenge: '🎲',
+    friendship_quiz: '💖',
+    who_more_likely: '🎭',
+    this_or_that: '🔀',
+    would_you_rather: '🤷',
+    truth_questions: '💬'
+  };
+
+  const CAT_EMOJI = {
+    speed: '⚡',
+    memory: '🧠',
+    word: '✍️',
+    versus: '⚔️',
+    social: '💬'
+  };
+
+  // ─── Load games ───
+  async function load(force = false) {
+    if (state.loading) return;
+    if (state.loaded && !force) {
+      render();
+      return;
+    }
+
+    const grid = $('#games-grid');
+    if (!grid) {
+      console.warn('[games] #games-grid not found');
+      return;
+    }
+
+    state.loading = true;
+    grid.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+      grid.appendChild(el('div', { class: 'skeleton skeleton-card' }));
+    }
+
     try {
-      const { challengeId } = payload || {};
-      if (!challengeId) return ack?.({ ok: false, error: 'MISSING_CHALLENGE' });
+      const res = await Api.listGames();
+      console.log('[games] loaded:', res);
 
-      const room = await roomService.getRoomForUser(userId);
-      if (!room) return ack?.({ ok: false, error: 'NO_ROOM' });
-
-      // Fetch the challenge
-      const ch = await challengeService.getActiveChallenge(room.id);
-      if (!ch || ch.id !== challengeId) {
-        return ack?.({ ok: false, error: 'CHALLENGE_NOT_FOUND' });
+      if (!res || !res.ok || !Array.isArray(res.games)) {
+        throw new Error('Invalid response');
       }
 
-      // ✅ FIX: allow 'accepted' OR 'active' (avoid race if both players call)
-      if (ch.status !== 'accepted' && ch.status !== 'active') {
-        return ack?.({ ok: false, error: 'CHALLENGE_NOT_ACCEPTED' });
-      }
+      state.games = res.games.map(g => ({
+        ...g,
+        emoji: GAME_EMOJI[g.key] || CAT_EMOJI[g.category] || '🎮'
+      }));
 
-      if (!registry.has(ch.game_key)) {
-        return ack?.({ ok: false, error: 'GAME_NOT_REGISTERED' });
-      }
+      window.__vd_games_cache = state.games;
+      state.loaded = true;
+      state.loading = false;
+      render();
+    } catch (e) {
+      console.error('[games] load failed', e);
+      state.loading = false;
+      grid.innerHTML = '';
+      grid.appendChild(el('div', { class: 'empty', style: 'grid-column:1/-1;' }, [
+        el('div', { class: 'empty-icon', text: '😵' }),
+        el('div', { class: 'empty-title', text: 'Failed to load games' }),
+        el('div', { class: 'empty-text', text: e.message || 'Please try again' }),
+        el('button', {
+          class: 'btn btn-ghost btn-sm',
+          style: 'margin-top:10px;',
+          text: 'Retry',
+          onclick: () => load(true)
+        })
+      ]));
+    }
+  }
 
-      if (userId !== ch.challenger_id && userId !== ch.opponent_id) {
-        return ack?.({ ok: false, error: 'NOT_A_PLAYER' });
-      }
+  // ─── Render games grid ───
+  function render() {
+    const grid = $('#games-grid');
+    if (!grid) return;
 
-      // If a session already exists for this challenge, don't create another
-      const { rows: existingSessions } = await require('../config/db').query(
-        `SELECT id FROM game_sessions WHERE challenge_id = $1 AND status IN ('waiting','ready','countdown','playing') LIMIT 1`,
-        [ch.id]
-      );
-      if (existingSessions.length > 0) {
-        return ack?.({ ok: true, sessionId: existingSessions[0].id, existing: true });
-      }
+    grid.innerHTML = '';
 
-      // Mark challenge active
-      await challengeService.markActive({ challengeId: ch.id });
+    const filtered = state.filter === 'all'
+      ? state.games
+      : state.games.filter(g => g.category === state.filter);
 
-      const session = await gameService.createSession({
-        roomId: room.id,
-        gameKey: ch.game_key,
-        playerAId: ch.challenger_id,
-        playerBId: ch.opponent_id,
-        challengeId: ch.id
+    if (!filtered.length) {
+      grid.appendChild(el('div', { class: 'empty', style: 'grid-column:1/-1;' }, [
+        el('div', { class: 'empty-icon', text: '🎮' }),
+        el('div', { class: 'empty-title', text: 'No games here' }),
+        el('div', { class: 'empty-text', text: 'Try a different category' })
+      ]));
+      return;
+    }
+
+    filtered.forEach((g, i) => {
+      const card = el('div', {
+        class: 'game-card',
+        dataset: { key: g.key },
+        style: `animation-delay:${Math.min(i * 30, 400)}ms`,
+        onclick: () => onGameClick(g)
+      }, [
+        el('div', { class: `game-card-badge badge-${g.category}`, text: g.category }),
+        el('div', { class: 'game-card-emoji', text: g.emoji }),
+        el('div', { class: 'game-card-title', text: g.title }),
+        el('div', { class: 'game-card-cat', text: 'Tap to challenge' })
+      ]);
+      grid.appendChild(card);
+    });
+  }
+
+  // ─── Filter chips ───
+  function initFilters() {
+    const chips = $$('[data-game-filters] .chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.toggle('active', c === chip));
+        state.filter = chip.dataset.cat;
+        render();
       });
+    });
+  }
 
-      // Broadcast session info
-      io.to(`room:${room.id}`).emit('game:session-created', {
-        sessionId: session.id,
-        gameKey: ch.game_key
-      });
+  // ─── Tap on game → challenge modal ───
+  async function onGameClick(game) {
+    const user = window.VDAuth?.getUser();
+    if (!user) return;
 
-      await gameService.startEngine(session, io);
+    const other = window.__vd_other_user;
 
-      ack?.({ ok: true, sessionId: session.id });
-    } catch (e) {
-      logger.error('game:start failed:', e.message);
-      ack?.({ ok: false, error: e.code || 'START_FAILED' });
+    if (!other) {
+      toast('Your duo is not in the room yet', 'info');
+      return;
     }
-  });
 
-  // ─── Player action during a game ───
-  socket.on('game:action', async (payload, ack) => {
-    try {
-      const { sessionId, action, payload: innerPayload } = payload || {};
-      if (!sessionId || !action) return ack?.({ ok: false, error: 'BAD_REQUEST' });
+    const body = el('div', { style: 'text-align:center;' }, [
+      el('div', { style: 'font-size:64px;margin-bottom:8px;', text: game.emoji }),
+      el('div', {
+        style: 'font-family:var(--font-display);font-size:20px;font-weight:700;',
+        text: game.title
+      }),
+      el('p', {
+        class: 'modal-desc',
+        style: 'margin-top:6px;',
+        text: `Challenge ${other.display_name || other.username}?`
+      })
+    ]);
 
-      const result = await gameService.handleAction({
-        sessionId, userId, action, payload: innerPayload
-      });
-      ack?.(result);
-    } catch (e) {
-      ack?.({ ok: false, error: 'ACTION_FAILED' });
-    }
-  });
+    window.VDUI.modal({
+      title: 'Start Game',
+      body,
+      actions: [
+        { label: 'Cancel', variant: 'btn-ghost' },
+        {
+          label: '⚔️ Challenge',
+          variant: 'btn-primary',
+          onClick: async () => {
+            const res = await window.VDSocket.Actions.challengeSend(game.key);
+            if (!res?.ok) {
+              toast(res?.error || 'Failed to send challenge', 'error');
+            }
+          }
+        }
+      ]
+    });
+  }
 
-  // ─── Client requests to resync live game state ───
-  socket.on('game:state', async (payload, ack) => {
-    try {
-      const { sessionId } = payload || {};
-      const engine = gameService.getEngine(sessionId);
-      if (!engine) return ack?.({ ok: false, error: 'NOT_ACTIVE' });
-      ack?.({ ok: true, state: engine.toJSON() });
-    } catch (e) {
-      ack?.({ ok: false, error: 'STATE_FAILED' });
-    }
-  });
+  // ─── Realtime binding ───
+  function bindRealtime() {
+    if (!window.VDSocket) return;
+    const S = window.VDSocket;
 
-  // ─── Cancel / forfeit ───
-  socket.on('game:cancel', async (payload, ack) => {
-    try {
-      const { sessionId } = payload || {};
-      await gameService.cancelSession(sessionId, 'PLAYER_CANCELLED');
-      ack?.({ ok: true });
-    } catch (e) {
-      ack?.({ ok: false, error: 'CANCEL_FAILED' });
-    }
-  });
-}
+    S.on('game:launch', (d) => {
+      if (window.VDGameUI?.start) {
+        window.VDGameUI.start(d);
+      }
+    });
 
-module.exports = { registerGame };
+    S.on('game:session-created', (d) => {
+      console.log('[games] session created', d);
+    });
+
+    S.on('game:result', () => {
+      if (window.VDStats?.invalidate) window.VDStats.invalidate();
+    });
+
+    S.on('game:cancelled', () => {
+      if (window.VDGameUI?.close) window.VDGameUI.close();
+      toast('Game cancelled', 'info');
+    });
+  }
+
+  // ─── Init ───
+  let inited = false;
+  function init() {
+    if (inited) return;
+    inited = true;
+    initFilters();
+    bindRealtime();
+    console.log('[games] initialized');
+  }
+
+  window.VDGames = {
+    init,
+    load,
+    render,
+    state
+  };
+})();
