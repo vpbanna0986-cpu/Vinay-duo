@@ -96,7 +96,7 @@
   function initRealtimeNotices() {
     if (!window.VDSocket) return;
 
-    // New challenge received
+    // ─── New challenge received ───
     window.VDSocket.on('challenge:new', (ch) => {
       const me = window.VDAuth?.getUser();
       if (!me) return;
@@ -107,25 +107,14 @@
       }
     });
 
-    // Challenge updated — accept/decline
+    // ─── Challenge accepted → close popup ───
+    // Backend creates session + starts engine + emits game:launch
+    // Frontend just needs to close modal and wait for game:launch
     window.VDSocket.on('challenge:updated', (ch) => {
       if (ch.status === 'accepted') {
         closeAnyModal();
         toast('Challenge accepted! Starting…', 'success');
-
-        const me = window.VDAuth?.getUser();
-        if (!me) return;
-
-        // ✅ BOTH players attempt game:start (server handles idempotency)
-        setTimeout(() => {
-          console.log('[app] calling game:start with challengeId=', ch.id);
-          window.VDSocket.Actions.gameStart(ch.id).then(res => {
-            console.log('[app] game:start result:', res);
-            if (!res?.ok) {
-              console.warn('[app] game:start failed:', res);
-            }
-          });
-        }, 500);
+        console.log('[app] challenge accepted — waiting for game:launch');
       } else if (ch.status === 'declined') {
         closeAnyModal();
         toast('Challenge declined', 'info');
@@ -135,18 +124,18 @@
       }
     });
 
-    // Server says "game launch" → open game UI
+    // ─── Server says "game launch" → open game UI ───
     window.VDSocket.on('game:launch', (payload) => {
       console.log('[app] game:launch received:', payload);
       closeAnyModal();
-      // Give the server a moment to send game:state / game:countdown
-      setTimeout(() => {
-        if (window.VDGameUI?.start) {
-          window.VDGameUI.start(payload);
-        }
-      }, 200);
+      if (window.VDGameUI?.start) {
+        window.VDGameUI.start(payload);
+      } else {
+        console.error('[app] VDGameUI not loaded');
+      }
     });
 
+    // ─── Achievement unlocked ───
     window.VDSocket.on('achievement:unlocked', (d) => {
       const list = d?.achievements || [];
       list.forEach((a, i) => {
