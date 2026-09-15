@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Challenge Socket Events
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 const challengeService = require('../services/challenge.service');
 const roomService = require('../services/room.service');
 const logger = require('../utils/logger');
@@ -5,7 +10,6 @@ const logger = require('../utils/logger');
 function registerChallenge(io, socket) {
   const userId = socket.user.id;
 
-  // ── Send challenge ──
   socket.on('challenge:send', async (payload, ack) => {
     try {
       const room = await roomService.getRoomForUser(userId);
@@ -19,7 +23,6 @@ function registerChallenge(io, socket) {
         gameKey
       });
 
-      // Broadcast to entire room
       io.to(`room:${room.id}`).emit('challenge:new', ch);
 
       ack?.({ ok: true, challenge: ch });
@@ -29,7 +32,6 @@ function registerChallenge(io, socket) {
     }
   });
 
-  // ── Accept / Decline ──
   socket.on('challenge:respond', async (payload, ack) => {
     try {
       const { challengeId, accept } = payload || {};
@@ -37,9 +39,10 @@ function registerChallenge(io, socket) {
         challengeId, userId, accept: !!accept
       });
 
+      // Broadcast updated challenge to both players
       io.to(`room:${updated.room_id}`).emit('challenge:updated', updated);
 
-      // If accepted, kick off game start
+      // If accepted, ALSO emit game:launch signal with challenge data
       if (updated.status === 'accepted') {
         io.to(`room:${updated.room_id}`).emit('game:launch', {
           challengeId: updated.id,
@@ -48,15 +51,16 @@ function registerChallenge(io, socket) {
           playerBId: updated.opponent_id,
           countdownMs: 3000
         });
+        logger.info(`challenge accepted → game:launch for challenge=${updated.id}`);
       }
 
       ack?.({ ok: true, challenge: updated });
     } catch (e) {
+      logger.error('challenge:respond failed:', e.message);
       ack?.({ ok: false, error: e.code || 'RESPOND_FAILED', message: e.message });
     }
   });
 
-  // ── Cancel ──
   socket.on('challenge:cancel', async (payload, ack) => {
     try {
       const { challengeId } = payload || {};
@@ -71,7 +75,6 @@ function registerChallenge(io, socket) {
     }
   });
 
-  // ── Get current active challenge ──
   socket.on('challenge:current', async (payload, ack) => {
     try {
       const room = await roomService.getRoomForUser(userId);
