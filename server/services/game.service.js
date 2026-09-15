@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Game Service (Session + Engine Bridge)
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 const db = require('../config/db');
 const roomService = require('./room.service');
 const xpService = require('./xp.service');
@@ -5,7 +10,6 @@ const { GameEngine } = require('../games/engine');
 const registry = require('../games/registry');
 const logger = require('../utils/logger');
 
-// In-memory live sessions: sessionId -> GameEngine
 const liveSessions = new Map();
 
 async function createSession({ roomId, gameKey, playerAId, playerBId, challengeId }) {
@@ -38,7 +42,6 @@ async function startEngine(sessionRow, io) {
     try {
       await persistResult(result);
       const unlocked = await xpService.processMatchResult(result);
-      // Emit achievement unlock events per user
       for (const [uid, list] of Object.entries(unlocked)) {
         io.to(`user:${uid}`).emit('achievement:unlocked', { achievements: list });
       }
