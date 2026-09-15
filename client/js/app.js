@@ -20,6 +20,15 @@
     }
   }
 
+  function closeAnyModal() {
+    const modalRoot = document.getElementById('modal-root');
+    if (modalRoot) {
+      modalRoot.classList.remove('active');
+      modalRoot.innerHTML = '';
+      modalRoot.setAttribute('aria-hidden', 'true');
+    }
+  }
+
   function initNav() {
     $$('[data-nav-view]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -98,13 +107,12 @@
       }
     });
 
-    // ─── Challenge accepted → tell both players to start the game ───
+    // ─── Challenge accepted → close popup + start game ───
     window.VDSocket.on('challenge:updated', (ch) => {
       if (ch.status === 'accepted') {
+        closeAnyModal();
         toast('Challenge accepted! Starting…', 'success');
 
-        // Whoever is on this client, initiate game:start
-        // Server will handle preventing double-start
         const me = window.VDAuth?.getUser();
         if (!me) return;
 
@@ -116,11 +124,13 @@
                 toast(res?.error || 'Failed to start game', 'error');
               }
             });
-          }, 400);
+          }, 300);
         }
       } else if (ch.status === 'declined') {
+        closeAnyModal();
         toast('Challenge declined', 'info');
       } else if (ch.status === 'cancelled') {
+        closeAnyModal();
         toast('Challenge cancelled', 'info');
       }
     });
@@ -128,6 +138,7 @@
     // ─── Server says "game launch" → open game UI ───
     window.VDSocket.on('game:launch', (payload) => {
       console.log('[app] game:launch', payload);
+      closeAnyModal();
       if (window.VDGameUI?.start) {
         window.VDGameUI.start(payload);
       }
