@@ -30,7 +30,10 @@
 
   function openOverlay() {
     const ov = getOverlay();
-    if (!ov) return;
+    if (!ov) {
+      console.error('[gameUI] #game-overlay not found in DOM');
+      return;
+    }
     ov.innerHTML = '';
     ov.classList.add('active');
     ov.setAttribute('aria-hidden', 'false');
@@ -49,31 +52,31 @@
     const other = window.__vd_other_user;
     return el('div', {
       class: 'game-header',
-      style: 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-1);'
+      style: 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-1);flex-shrink:0;'
     }, [
-      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;' }, [
+      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;' }, [
         el('div', {
           class: 'avatar avatar-xs',
           style: 'background:' + window.VDUI.avatarColor(me?.username || 'me'),
           text: window.VDUI.avatarInitials(me?.display_name || me?.username || 'You')
         }),
-        el('div', {}, [
+        el('div', { style: 'min-width:0;' }, [
           el('div', { style: 'font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);', text: 'You' }),
           el('div', { style: 'font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--text-1);line-height:1;', 'data-my-score': '', text: '0' })
         ])
       ]),
-      el('div', { style: 'font-family:var(--font-display);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-3);text-align:center;padding:0 10px;' }, [
+      el('div', { style: 'font-family:var(--font-display);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-3);text-align:center;padding:0 10px;flex-shrink:0;' }, [
         el('div', { style: 'font-weight:700;color:var(--vd-violet-lt);margin-bottom:2px;', text: state.gameTitle || 'GAME' }),
         el('div', { text: 'VS' })
       ]),
-      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-direction:row-reverse;' }, [
+      el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-direction:row-reverse;min-width:0;' }, [
         el('div', {
           class: 'avatar avatar-xs',
           style: 'background:' + window.VDUI.avatarColor(other?.username || 'friend'),
           text: window.VDUI.avatarInitials(other?.display_name || other?.username || 'Friend')
         }),
-        el('div', { style: 'text-align:right;' }, [
-          el('div', { style: 'font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);', text: (other?.display_name || 'Friend').slice(0, 8) }),
+        el('div', { style: 'text-align:right;min-width:0;' }, [
+          el('div', { style: 'font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;', text: (other?.display_name || 'Friend').slice(0, 8) }),
           el('div', { style: 'font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--text-1);line-height:1;', 'data-other-score': '', text: '0' })
         ])
       ])
@@ -91,13 +94,13 @@
     return el('div', {
       class: 'game-body',
       'data-game-body': '',
-      style: 'flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;'
+      style: 'flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-height:0;'
     });
   }
 
   function renderFooter() {
     return el('div', {
-      style: 'padding:12px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-top:1px solid var(--border-1);display:flex;justify-content:center;'
+      style: 'padding:12px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-top:1px solid var(--border-1);display:flex;justify-content:center;flex-shrink:0;'
     }, [
       el('button', {
         class: 'btn btn-ghost btn-sm',
@@ -107,16 +110,23 @@
     ]);
   }
 
+  // ═══════════════════════════════════════════════════════
+  //  START — called when game:launch received
+  // ═══════════════════════════════════════════════════════
   async function start(launchPayload) {
-    const { sessionId, gameKey, playerAId, playerBId, challengeId } = launchPayload || {};
+    const { sessionId, gameKey, playerAId, playerBId } = launchPayload || {};
 
-    // If no sessionId yet, try to fetch from challenge start
+    console.log('[gameUI] start called:', launchPayload);
+
     if (!sessionId) {
-      console.log('[gameUI] no sessionId in launch — waiting for session-created');
-      // We'll handle when session-created arrives (see bindRealtime)
+      console.error('[gameUI] start called without sessionId — aborting');
+      toast('Game session missing — try again', 'error');
       return;
     }
-    if (!gameKey) return;
+    if (!gameKey) {
+      console.error('[gameUI] start called without gameKey — aborting');
+      return;
+    }
 
     // Close any open modal
     const modalRoot = document.getElementById('modal-root');
@@ -126,7 +136,10 @@
     }
 
     const me = window.VDAuth?.getUser();
-    if (!me) return;
+    if (!me) {
+      console.error('[gameUI] no current user');
+      return;
+    }
 
     state.sessionId = sessionId;
     state.gameKey = gameKey;
@@ -144,6 +157,8 @@
 
     openOverlay();
     const ov = getOverlay();
+    if (!ov) return;
+
     ov.appendChild(renderHeader());
     const body = renderBody();
     ov.appendChild(body);
@@ -166,6 +181,7 @@
         container: body,
         emitAction: emitAction
       });
+      console.log('[gameUI] mounted game module:', gameKey);
     } catch (e) {
       console.error('[gameUI] mount failed', e);
     }
@@ -250,14 +266,6 @@
     if (!window.VDSocket) return;
     const S = window.VDSocket;
 
-    // When server creates session → store it and if launch pending, mount now
-    S.on('game:session-created', (d) => {
-      console.log('[gameUI] session-created:', d);
-      if (!state.sessionId && d.sessionId) {
-        state.sessionId = d.sessionId;
-      }
-    });
-
     S.on('game:score', (d) => {
       if (!state.active) return;
       const me = window.VDAuth?.getUser();
@@ -313,6 +321,16 @@
     ];
 
     knownEvents.forEach(evt => {
+      S.on(evt, (d) => {
+        if (state.currentGame?.onEvent) {
+          try { state.currentGame.onEvent(evt, d); } catch (e) { console.warn('[game]', evt, e); }
+        }
+      });
+    });
+
+    // Also listen for game:countdown / game:playing / game:round-start
+    // (these are lifecycle events — forward to active game module too)
+    ['game:state', 'game:countdown', 'game:playing', 'game:round-start'].forEach(evt => {
       S.on(evt, (d) => {
         if (state.currentGame?.onEvent) {
           try { state.currentGame.onEvent(evt, d); } catch (e) { console.warn('[game]', evt, e); }
