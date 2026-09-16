@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Socket.IO Server Setup
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 const { Server } = require('socket.io');
 const env = require('../config/env');
 const logger = require('../utils/logger');
@@ -15,15 +20,33 @@ function initSockets(server) {
       origin: env.CLIENT_ORIGIN === '*' ? true : env.CLIENT_ORIGIN.split(',').map(s => s.trim()),
       credentials: true
     },
-    transports: ['websocket', 'polling'],
+    // ✅ POLLING FIRST — Render free tier pe stable rehta hai
+    transports: ['polling', 'websocket'],
+    allowUpgrades: true,
+    upgradeTimeout: 30000,
+
+    // ✅ Long timeouts — background tabs aur slow networks ke liye
     pingInterval: 25000,
-    pingTimeout: 20000
+    pingTimeout: 60000,
+
+    // ✅ Higher limits for stability
+    maxHttpBufferSize: 1e6,
+    connectTimeout: 45000,
+    allowEIO3: true,
+
+    // ✅ Cleanup on close
+    cleanupEmptyChildNamespaces: true
   });
 
   io.use(socketAuth);
 
   io.on('connection', (socket) => {
-    logger.info(`socket connected: user=${socket.user.username} id=${socket.id}`);
+    logger.info(`socket connected: user=${socket.user.username} id=${socket.id} transport=${socket.conn.transport.name}`);
+
+    // Log transport upgrades
+    socket.conn.on('upgrade', () => {
+      logger.info(`socket upgraded: user=${socket.user.username} id=${socket.id} → ${socket.conn.transport.name}`);
+    });
 
     socket.join(`user:${socket.user.id}`);
 
@@ -36,6 +59,10 @@ function initSockets(server) {
 
     socket.on('disconnect', (reason) => {
       logger.info(`socket disconnected: user=${socket.user.username} reason=${reason}`);
+    });
+
+    socket.on('error', (err) => {
+      logger.error(`socket error: user=${socket.user.username} err=${err.message}`);
     });
   });
 
