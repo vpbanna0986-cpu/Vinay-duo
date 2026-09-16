@@ -7,9 +7,8 @@
   'use strict';
 
   let socket = null;
-  const listeners = new Map(); // event -> Set<fn>
+  const listeners = new Map();
 
-  // ─── Event bus ───
   function on(event, fn) {
     if (!listeners.has(event)) listeners.set(event, new Set());
     listeners.get(event).add(fn);
@@ -29,7 +28,6 @@
     }
   }
 
-  // ─── Connection state ───
   const state = {
     connected: false,
     authenticated: false,
@@ -37,7 +35,6 @@
     lastError: null
   };
 
-  // ─── Init ───
   function connect() {
     const token = window.VDApi?.Token?.get();
     if (!token) {
@@ -49,24 +46,29 @@
 
     socket = window.io({
       auth: { token },
-      transports: ['websocket', 'polling'],
+      // ✅ POLLING FIRST — more stable on Render free tier
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      rememberUpgrade: false,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 8000,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 5000,
       reconnectionAttempts: Infinity,
-      timeout: 20000
+      randomizationFactor: 0.5,
+      timeout: 45000,
+      forceNew: false,
+      autoConnect: true,
+      closeOnBeforeunload: false
     });
 
-    // ─── Lifecycle ───
     socket.on('connect', () => {
       state.connected = true;
       state.authenticated = true;
       state.reconnecting = false;
       state.lastError = null;
       emit('connected');
-      console.log('[socket] connected', socket.id);
+      console.log('[socket] connected', socket.id, 'transport:', socket.io.engine.transport.name);
 
-      // Auto-join room channel if we have one
       socket.emit('room:resync', {}, (res) => {
         if (res?.ok && res.room) emit('room:state', res.room);
       });
@@ -96,38 +98,29 @@
       emit('reconnected', { attempt });
     });
 
-    // ═══════════════════════════════════════════════════════
-    //  SERVER → CLIENT EVENTS
-    // ═══════════════════════════════════════════════════════
-
-    // Presence
+    // ─── Server → Client events ───
     socket.on('presence:update', (d) => emit('presence:update', d));
     socket.on('presence:list',   (d) => emit('presence:list', d));
 
-    // Room
     socket.on('room:state',         (d) => emit('room:state', d));
     socket.on('room:sync',          (d) => emit('room:sync', d));
     socket.on('room:member-joined', (d) => emit('room:member-joined', d));
     socket.on('room:member-left',   (d) => emit('room:member-left', d));
     socket.on('room:activity',      (d) => emit('room:activity', d));
 
-    // Typing
     socket.on('typing:start', (d) => emit('typing:start', d));
     socket.on('typing:stop',  (d) => emit('typing:stop', d));
 
-    // Chat
     socket.on('chat:new',      (d) => emit('chat:new', d));
     socket.on('chat:edited',   (d) => emit('chat:edited', d));
     socket.on('chat:deleted',  (d) => emit('chat:deleted', d));
     socket.on('chat:reaction', (d) => emit('chat:reaction', d));
     socket.on('chat:seen',     (d) => emit('chat:seen', d));
 
-    // Challenge
     socket.on('challenge:new',       (d) => emit('challenge:new', d));
     socket.on('challenge:updated',   (d) => emit('challenge:updated', d));
     socket.on('challenge:cancelled', (d) => emit('challenge:cancelled', d));
 
-    // Game lifecycle
     socket.on('game:launch',          (d) => emit('game:launch', d));
     socket.on('game:session-created', (d) => emit('game:session-created', d));
     socket.on('game:state',           (d) => emit('game:state', d));
@@ -138,21 +131,47 @@
     socket.on('game:result',          (d) => emit('game:result', d));
     socket.on('game:cancelled',       (d) => emit('game:cancelled', d));
 
-    // Per-game events — forward everything starting with 'game:'
-    const gameEventPrefixes = ['game:reaction', 'game:ten', 'game:flash', 'game:memory',
-      'game:sequence', 'game:numrecall', 'game:math', 'game:odd', 'game:pattern',
-      'game:emojimem', 'game:scramble', 'game:emojiguess', 'game:guessword',
-      'game:describe', 'game:sound', 'game:draw', 'game:wkw', 'game:rps',
-      'game:ttt', 'game:c4', 'game:numbattle', 'game:hl', 'game:quiz',
-      'game:rchallenge', 'game:friendquiz', 'game:likely', 'game:tot', 'game:wyr', 'game:truth'];
-    // Socket.IO will emit any event we listen for. Add wildcard-ish listeners:
-    // (Socket.IO v4 supports per-event 'on' — we hook the game:action callback instead)
+    // ── Per-game events ──
+    const perGameEvents = [
+      'game:reaction:wait', 'game:reaction:go', 'game:reaction:tap', 'game:reaction:early',
+      'game:reaction:timeout', 'game:reaction:round-result',
+      'game:ten:ready', 'game:ten:started', 'game:ten:stopped',
+      'game:flash:show', 'game:flash:hide', 'game:flash:result', 'game:flash:timeout',
+      'game:memory:start', 'game:memory:flip',
+      'game:sequence:show', 'game:sequence:hide', 'game:sequence:tap', 'game:sequence:complete', 'game:sequence:timeout',
+      'game:numrecall:show', 'game:numrecall:hide', 'game:numrecall:result', 'game:numrecall:reveal', 'game:numrecall:timeout',
+      'game:math:question', 'game:math:correct', 'game:math:wrong', 'game:math:round-end', 'game:math:timeout',
+      'game:odd:show', 'game:odd:correct', 'game:odd:wrong', 'game:odd:round-end', 'game:odd:timeout',
+      'game:pattern:show', 'game:pattern:correct', 'game:pattern:wrong', 'game:pattern:round-end', 'game:pattern:timeout',
+      'game:emojimem:show', 'game:emojimem:hide', 'game:emojimem:result', 'game:emojimem:reveal', 'game:emojimem:timeout',
+      'game:scramble:show', 'game:scramble:correct', 'game:scramble:wrong', 'game:scramble:round-end', 'game:scramble:timeout',
+      'game:emojiguess:show', 'game:emojiguess:correct', 'game:emojiguess:wrong', 'game:emojiguess:round-end', 'game:emojiguess:timeout',
+      'game:guessword:show', 'game:guessword:correct', 'game:guessword:wrong', 'game:guessword:round-end', 'game:guessword:timeout',
+      'game:describe:start', 'game:describe:your-word', 'game:describe:guesser-turn', 'game:describe:correct', 'game:describe:wrong', 'game:describe:skipped', 'game:describe:timeout',
+      'game:sound:play', 'game:sound:correct', 'game:sound:wrong', 'game:sound:round-end', 'game:sound:timeout',
+      'game:draw:start', 'game:draw:your-word', 'game:draw:stroke', 'game:draw:clear', 'game:draw:correct', 'game:draw:wrong', 'game:draw:timeout',
+      'game:wkw:start', 'game:wkw:subject-ready', 'game:wkw:guesser-ready', 'game:wkw:subject-locked', 'game:wkw:guesser-locked', 'game:wkw:result',
+      'game:rps:start', 'game:rps:opponent-picked', 'game:rps:result',
+      'game:ttt:start', 'game:ttt:move', 'game:ttt:win', 'game:ttt:tie', 'game:ttt:timeout',
+      'game:c4:start', 'game:c4:drop', 'game:c4:win', 'game:c4:tie', 'game:c4:timeout',
+      'game:numbattle:start', 'game:numbattle:feedback', 'game:numbattle:opponent-guessed', 'game:numbattle:correct', 'game:numbattle:round-end', 'game:numbattle:timeout',
+      'game:hl:start', 'game:hl:result',
+      'game:quiz:question', 'game:quiz:your-answer', 'game:quiz:result',
+      'game:rchallenge:start', 'game:rchallenge:marked-done', 'game:rchallenge:result', 'game:rchallenge:timeout',
+      'game:friendquiz:start', 'game:friendquiz:locked', 'game:friendquiz:self-reveal', 'game:friendquiz:result',
+      'game:likely:start', 'game:likely:locked', 'game:likely:result',
+      'game:tot:start', 'game:tot:locked', 'game:tot:result',
+      'game:wyr:start', 'game:wyr:locked', 'game:wyr:result',
+      'game:truth:start', 'game:truth:locked', 'game:truth:result'
+    ];
 
-    // Achievements
+    perGameEvents.forEach(evt => {
+      socket.on(evt, (d) => emit(evt, d));
+    });
+
     socket.on('achievement:unlocked', (d) => emit('achievement:unlocked', d));
   }
 
-  // ─── Send helpers ───
   function send(event, payload) {
     return new Promise((resolve) => {
       if (!socket || !socket.connected) {
@@ -167,19 +186,15 @@
     socket.emit(event, payload || {});
   }
 
-  // ─── Specific emit wrappers ───
   const Actions = {
-    // Room
     roomJoin:     () => send('room:join'),
     roomLeave:    () => send('room:leave'),
     roomResync:   () => send('room:resync'),
     roomActivity: (activity) => send('room:activity', { activity }),
 
-    // Typing
     typingStart: () => fire('typing:start'),
     typingStop:  () => fire('typing:stop'),
 
-    // Chat
     chatSend:   (payload) => send('chat:send', payload),
     chatEdit:   (payload) => send('chat:edit', payload),
     chatDelete: (payload) => send('chat:delete', payload),
@@ -187,23 +202,19 @@
     chatSeen:   (payload) => send('chat:seen', payload),
     chatHistory:(payload) => send('chat:history', payload || {}),
 
-    // Challenges
     challengeSend:    (gameKey) => send('challenge:send', { gameKey }),
     challengeRespond: (challengeId, accept) => send('challenge:respond', { challengeId, accept }),
     challengeCancel:  (challengeId) => send('challenge:cancel', { challengeId }),
     challengeCurrent: () => send('challenge:current'),
 
-    // Games
     gameStart:  (challengeId) => send('game:start', { challengeId }),
     gameAction: (sessionId, action, payload) => send('game:action', { sessionId, action, payload }),
     gameState:  (sessionId) => send('game:state', { sessionId }),
     gameCancel: (sessionId) => send('game:cancel', { sessionId }),
 
-    // Presence
     presenceList: () => send('presence:list')
   };
 
-  // ─── Disconnect ───
   function disconnect() {
     if (socket) {
       try { socket.disconnect(); } catch {}
@@ -213,7 +224,6 @@
     state.authenticated = false;
   }
 
-  // ─── Expose ───
   window.VDSocket = {
     connect,
     disconnect,
