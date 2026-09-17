@@ -1,9 +1,19 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Flash Grid
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 module.exports = {
   totalRounds: 5,
   roundState: {},
 
   onStart(engine) {
     this.roundState = {};
+    this.startRound(engine);
+  },
+
+  // ✅ FIX: Rounds 2-5 ke liye
+  onRoundStart(engine) {
     this.startRound(engine);
   },
 
@@ -21,27 +31,20 @@ module.exports = {
     const targetCells = indices.slice(0, flashCount).sort((a, b) => a - b);
 
     this.roundState[r] = {
-      gridSize,
-      targetCells,
-      guesses: {},
-      revealed: false
+      gridSize, targetCells, guesses: {}, revealed: false
     };
 
     const flashMs = Math.max(600, 1500 - r * 100);
 
     engine.emitToPlayers('game:flash:show', {
-      round: r,
-      totalRounds: 5,
-      gridSize,
-      targetCells,
-      flashMs
+      round: r, totalRounds: 5, gridSize, targetCells, flashMs
     });
 
     engine.setTimer(flashMs, () => {
       engine.emitToPlayers('game:flash:hide', { round: r, gridSize });
       this.roundState[r].revealed = true;
 
-      engine.setTimer(5000, () => {
+      engine.setTimer(8000, () => {
         if (Object.keys(this.roundState[r].guesses).length < 2) {
           engine.emitToPlayers('game:flash:timeout', { round: r });
           engine.roundComplete();
@@ -58,8 +61,7 @@ module.exports = {
     if (st.guesses[userId]) return { ok: false, error: 'ALREADY_GUESSED' };
 
     const guess = Array.isArray(payload?.cells)
-      ? payload.cells.map(Number).sort((a, b) => a - b)
-      : [];
+      ? payload.cells.map(Number).sort((a, b) => a - b) : [];
     st.guesses[userId] = guess;
 
     const targetSet = new Set(st.targetCells);
@@ -77,9 +79,8 @@ module.exports = {
     });
 
     if (Object.keys(st.guesses).length === 2) {
-      engine.setTimer(1200, () => engine.roundComplete());
+      engine.setTimer(1500, () => engine.roundComplete());
     }
-
     return { ok: true, score };
   },
 
