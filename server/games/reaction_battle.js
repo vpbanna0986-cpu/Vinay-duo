@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Reaction Battle
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 module.exports = {
   totalRounds: 3,
   roundDelays: [],
@@ -33,7 +38,8 @@ module.exports = {
         serverTs: startedAt
       });
 
-      engine.setTimer(3000, () => {
+      // Auto-end round after 10s if nobody taps (polling delay se bachne ke liye)
+      engine.setTimer(10000, () => {
         if (Object.keys(this.roundResults[r]).length === 0) {
           engine.emitToPlayers('game:reaction:timeout', { round: r });
           engine.roundComplete();
