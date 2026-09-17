@@ -30,10 +30,7 @@
 
   function openOverlay() {
     const ov = getOverlay();
-    if (!ov) {
-      console.error('[gameUI] #game-overlay not found in DOM');
-      return;
-    }
+    if (!ov) { console.error('[gameUI] #game-overlay not found'); return; }
     ov.innerHTML = '';
     ov.classList.add('active');
     ov.setAttribute('aria-hidden', 'false');
@@ -51,7 +48,6 @@
     const me = window.VDAuth?.getUser();
     const other = window.__vd_other_user;
     return el('div', {
-      class: 'game-header',
       style: 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(10,10,18,0.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-1);flex-shrink:0;'
     }, [
       el('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;' }, [
@@ -92,7 +88,6 @@
 
   function renderBody() {
     return el('div', {
-      class: 'game-body',
       'data-game-body': '',
       style: 'flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-height:0;'
     });
@@ -110,21 +105,17 @@
     ]);
   }
 
-  // ═══════════════════════════════════════════════════════
-  //  START — called when game:launch received
-  // ═══════════════════════════════════════════════════════
   async function start(launchPayload) {
     const { sessionId, gameKey, playerAId, playerBId } = launchPayload || {};
 
     console.log('[gameUI] start called:', launchPayload);
 
     if (!sessionId) {
-      console.error('[gameUI] start called without sessionId — aborting');
-      toast('Game session missing — try again', 'error');
+      console.error('[gameUI] start called without sessionId');
       return;
     }
     if (!gameKey) {
-      console.error('[gameUI] start called without gameKey — aborting');
+      console.error('[gameUI] start called without gameKey');
       return;
     }
 
@@ -136,10 +127,7 @@
     }
 
     const me = window.VDAuth?.getUser();
-    if (!me) {
-      console.error('[gameUI] no current user');
-      return;
-    }
+    if (!me) { console.error('[gameUI] no current user'); return; }
 
     state.sessionId = sessionId;
     state.gameKey = gameKey;
@@ -181,7 +169,7 @@
         container: body,
         emitAction: emitAction
       });
-      console.log('[gameUI] mounted game module:', gameKey);
+      console.log('[gameUI] mounted module:', gameKey);
     } catch (e) {
       console.error('[gameUI] mount failed', e);
     }
@@ -201,6 +189,15 @@
   }
 
   function emitAction(action, payload) {
+    // ✅ Safe check — prevent crash if socket not ready
+    if (!window.VDSocket || !window.VDSocket.state?.connected) {
+      console.warn('[gameUI] cannot emit — socket not connected');
+      return Promise.resolve({ ok: false, error: 'NOT_CONNECTED' });
+    }
+    if (!state.sessionId) {
+      console.warn('[gameUI] cannot emit — no sessionId');
+      return Promise.resolve({ ok: false, error: 'NO_SESSION' });
+    }
     return window.VDSocket.Actions.gameAction(state.sessionId, action, payload || {});
   }
 
@@ -287,6 +284,7 @@
       toast('Game cancelled', 'info');
     });
 
+    // Forward all per-game events to active module
     const knownEvents = [
       'game:reaction:wait', 'game:reaction:go', 'game:reaction:tap', 'game:reaction:early',
       'game:reaction:timeout', 'game:reaction:round-result',
@@ -328,8 +326,7 @@
       });
     });
 
-    // Also listen for game:countdown / game:playing / game:round-start
-    // (these are lifecycle events — forward to active game module too)
+    // Lifecycle events (also forwarded to module)
     ['game:state', 'game:countdown', 'game:playing', 'game:round-start'].forEach(evt => {
       S.on(evt, (d) => {
         if (state.currentGame?.onEvent) {
