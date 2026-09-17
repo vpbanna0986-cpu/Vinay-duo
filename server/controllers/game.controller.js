@@ -1,13 +1,18 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — Game Controller
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 const gameService = require('../services/game.service');
 const roomService = require('../services/room.service');
 const registry = require('../games/registry');
+const db = require('../config/db');
 
 async function listGames(req, res, next) {
   try {
-    const { rows } = await require('../config/db').query(
+    const { rows } = await db.query(
       `SELECT key, title, category, metadata FROM games WHERE is_active=TRUE ORDER BY category, title`
     );
-    // Mark which ones have registered definitions (playable)
     const list = rows.map(r => ({ ...r, playable: registry.has(r.key) }));
     res.json({ ok: true, games: list });
   } catch (e) { next(e); }
@@ -23,4 +28,21 @@ async function recentResults(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listGames, recentResults };
+// ✅ Reliable HTTP game action — used for critical moves (tap, guess, move)
+async function action(req, res, next) {
+  try {
+    const { sessionId, action, payload } = req.body || {};
+    if (!sessionId || !action) {
+      return res.status(400).json({ ok: false, error: 'BAD_REQUEST' });
+    }
+    const result = await gameService.handleAction({
+      sessionId,
+      userId: req.user.id,
+      action,
+      payload
+    });
+    res.json(result);
+  } catch (e) { next(e); }
+}
+
+module.exports = { listGames, recentResults, action };
