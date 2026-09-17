@@ -1,54 +1,52 @@
 /* ═══════════════════════════════════════════════════════
-   VINAY DUO — Reaction Battle
+   VINAY DUO — Reaction Battle (Final)
    Made by VP
    ═══════════════════════════════════════════════════════ */
 
 module.exports = {
   totalRounds: 3,
-  roundDelays: [],
-  roundStartTimes: {},
-  roundResults: {},
+  delays: [],
+  startTimes: {},
+  results: {},
+  awarded: {},
 
   onStart(engine) {
-    this.roundDelays = Array.from({ length: 3 }, () =>
-      2000 + Math.floor(Math.random() * 4000)
-    );
-    this.roundStartTimes = {};
-    this.roundResults = {};
+    this.delays = Array.from({ length: 3 }, () => 2000 + Math.floor(Math.random() * 4000));
+    this.startTimes = {};
+    this.results = {};
+    this.awarded = {};
     this.startRound(engine);
   },
 
-  // ✅ FIX: Round 2, 3 ke liye ye zaroori hai
   onRoundStart(engine) {
     this.startRound(engine);
   },
 
   startRound(engine) {
     const r = engine.round;
-    const delay = this.roundDelays[r - 1];
+    const delay = this.delays[r - 1] || 3000;
+
+    this.awarded[r] = false;
+    this.results[r] = {};
+    this.startTimes[r] = null;
 
     engine.emitToPlayers('game:reaction:wait', {
       round: r,
-      totalRounds: 3,
-      delayMs: delay,
-      message: 'Wait for green...'
+      totalRounds: this.totalRounds
     });
 
     engine.setTimer(delay, () => {
-      const startedAt = Date.now();
-      this.roundStartTimes[r] = startedAt;
-      this.roundResults[r] = {};
-
+      this.startTimes[r] = Date.now();
       engine.emitToPlayers('game:reaction:go', {
         round: r,
-        serverTs: startedAt
+        serverTs: this.startTimes[r]
       });
 
-      // Timeout 10s
-      engine.setTimer(10000, () => {
-        if (Object.keys(this.roundResults[r]).length === 0) {
-          engine.emitToPlayers('game:reaction:timeout', { round: r });
-          this.awardRound(engine, r, null);
+      // No-tap fallback after 9s
+      engine.setTimer(9000, () => {
+        if (!this.awarded[r]) {
+          this.awarded[r] = true;
+          this.finishRound(engine, r, null);
         }
       });
     });
@@ -58,52 +56,53 @@ module.exports = {
     if (action !== 'tap') return { ok: false, error: 'BAD_ACTION' };
 
     const r = engine.round;
-    const roundStart = this.roundStartTimes[r];
 
-    if (!roundStart) {
+    // ✅ Idempotent — round already decided
+    if (this.awarded[r]) return { ok: false, error: 'ROUND_OVER' };
+
+    const startTime = this.startTimes[r];
+
+    // Early tap (before GO) → other player wins
+    if (!startTime) {
+      this.awarded[r] = true;
+      const other = userId === engine.playerAId ? engine.playerBId : engine.playerAId;
       engine.emitToPlayers('game:reaction:early', { userId, round: r });
-      this.awardRound(engine, r, this.other(engine, userId));
+      this.finishRound(engine, r, other);
       return { ok: true, early: true };
     }
 
-    if (this.roundResults[r][userId]) return { ok: false, error: 'ALREADY_TAPPED' };
+    // Already tapped by this user
+    if (this.results[r][userId] !== undefined) {
+      return { ok: false, error: 'ALREADY_TAPPED' };
+    }
 
-    const elapsed = Date.now() - roundStart;
-    this.roundResults[r][userId] = elapsed;
+    const elapsed = Date.now() - startTime;
+    this.results[r][userId] = elapsed;
 
-    engine.emitToPlayers('game:reaction:tap', {
-      round: r, userId, elapsed
-    });
+    engine.emitToPlayers('game:reaction:tap', { round: r, userId, elapsed });
 
-    this.awardRound(engine, r, userId);
+    // ✅ First valid tap wins — immediately lock the round
+    this.awarded[r] = true;
+    this.finishRound(engine, r, userId);
+
     return { ok: true, elapsed };
   },
 
-  awardRound(engine, round, winnerId) {
+  finishRound(engine, round, winnerId) {
     if (winnerId) engine.awardPoints(winnerId, 1);
 
     engine.emitToPlayers('game:reaction:round-result', {
       round,
-      totalRounds: 3,
+      totalRounds: this.totalRounds,
       winnerId,
-      times: this.roundResults[round] || {},
-      isLastRound: round >= 3
+      times: { ...(this.results[round] || {}) },
+      isLastRound: round >= this.totalRounds
     });
 
-    // Wait 2s to show result, then move to next round or finish
-    engine.setTimer(2000, () => engine.roundComplete());
-  },
-
-  other(engine, userId) {
-    return userId === engine.playerAId ? engine.playerBId : engine.playerAId;
+    engine.setTimer(2200, () => engine.roundComplete());
   },
 
   onFinish(engine) {
-    return {
-      details: {
-        scores: engine.scores,
-        delays: this.roundDelays
-      }
-    };
+    return { details: { scores: { ...engine.scores } } };
   }
 };
