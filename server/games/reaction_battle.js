@@ -18,6 +18,11 @@ module.exports = {
     this.startRound(engine);
   },
 
+  // ✅ FIX: Round 2, 3 ke liye ye zaroori hai
+  onRoundStart(engine) {
+    this.startRound(engine);
+  },
+
   startRound(engine) {
     const r = engine.round;
     const delay = this.roundDelays[r - 1];
@@ -25,6 +30,7 @@ module.exports = {
     engine.emitToPlayers('game:reaction:wait', {
       round: r,
       totalRounds: 3,
+      delayMs: delay,
       message: 'Wait for green...'
     });
 
@@ -38,11 +44,11 @@ module.exports = {
         serverTs: startedAt
       });
 
-      // Auto-end round after 10s if nobody taps (polling delay se bachne ke liye)
+      // Timeout 10s
       engine.setTimer(10000, () => {
         if (Object.keys(this.roundResults[r]).length === 0) {
           engine.emitToPlayers('game:reaction:timeout', { round: r });
-          engine.roundComplete();
+          this.awardRound(engine, r, null);
         }
       });
     });
@@ -74,11 +80,18 @@ module.exports = {
   },
 
   awardRound(engine, round, winnerId) {
-    engine.awardPoints(winnerId, 1);
+    if (winnerId) engine.awardPoints(winnerId, 1);
+
     engine.emitToPlayers('game:reaction:round-result', {
-      round, winnerId, times: this.roundResults[round]
+      round,
+      totalRounds: 3,
+      winnerId,
+      times: this.roundResults[round] || {},
+      isLastRound: round >= 3
     });
-    engine.setTimer(1200, () => engine.roundComplete());
+
+    // Wait 2s to show result, then move to next round or finish
+    engine.setTimer(2000, () => engine.roundComplete());
   },
 
   other(engine, userId) {
