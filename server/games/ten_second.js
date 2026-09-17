@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   VINAY DUO — 10-Second Challenge
+   Made by VP
+   ═══════════════════════════════════════════════════════ */
+
 module.exports = {
   totalRounds: 2,
   starts: {},
@@ -8,6 +13,17 @@ module.exports = {
       totalRounds: 2,
       targetMs: 10000,
       message: 'Tap START, then STOP exactly at 10.000s'
+    });
+  },
+
+  // ✅ FIX: Round 2 ke liye
+  onRoundStart(engine) {
+    this.starts = {};
+    engine.emitToPlayers('game:ten:ready', {
+      totalRounds: 2,
+      targetMs: 10000,
+      round: engine.round,
+      message: 'Round ' + engine.round + ' — ready?'
     });
   },
 
@@ -41,21 +57,17 @@ module.exports = {
         this.starts[engine.playerAId + ':stop'] !== undefined &&
         this.starts[engine.playerBId + ':stop'] !== undefined
       ) {
-        engine.setTimer(1200, () => {
+        engine.setTimer(1500, () => {
           this.starts = {};
           engine.roundComplete();
         });
       }
-
       return { ok: true, elapsed, score };
     }
-
     return { ok: false, error: 'BAD_ACTION' };
   },
 
   onFinish(engine) {
-    return {
-      details: { scores: engine.scores, targetMs: 10000 }
-    };
+    return { details: { scores: engine.scores, targetMs: 10000 } };
   }
 };
