@@ -17,14 +17,13 @@
     mount({ container, emit }) {
       this.container = container;
       this.emit = emit;
-      this.state = 'waiting'; // waiting | go | early | timeout | done
+      this.state = 'waiting';
       this.renderWaiting();
     },
 
     renderWaiting() {
       this.container.innerHTML = '';
       this.container.appendChild(el('div', {
-        class: 'speed-stage',
         style: 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;'
       }, [
         el('div', { style: 'font-size:72px;margin-bottom:16px;', text: '⚡' }),
@@ -69,7 +68,7 @@
     renderGo() {
       this.container.innerHTML = '';
       const tapZone = el('button', {
-        style: 'flex:1;width:100%;background:linear-gradient(135deg,#22c55e,#06b6d4);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;border-radius:16px;margin:24px;box-shadow:0 0 80px rgba(34,197,94,0.6);animation:scaleIn 240ms var(--ease-bounce);transition:transform 100ms;'
+        style: 'flex:1;width:100%;background:linear-gradient(135deg,#22c55e,#06b6d4);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;border-radius:16px;margin:24px;box-shadow:0 0 80px rgba(34,197,94,0.6);transition:transform 100ms;'
       }, [
         el('div', { style: 'font-size:120px;margin-bottom:12px;', text: '👆' }),
         el('div', { style: 'font-family:var(--font-display);font-size:42px;font-weight:800;color:#fff;letter-spacing:0.05em;text-shadow:0 4px 20px rgba(0,0,0,0.4);', text: 'TAP!' })
@@ -78,8 +77,16 @@
       const doTap = () => {
         if (this.state !== 'go') return;
         this.state = 'tapped';
-        tapZone.style.transform = 'scale(0.95)';
-        this.emit('tap');
+
+        // ✅ Fire tap immediately (fire-and-forget, no await)
+        try { this.emit('tap', {}); } catch (e) { console.warn(e); }
+        // Also fallback via global
+        try {
+          if (window.VDGameUI?.emitAction) window.VDGameUI.emitAction('tap', {});
+        } catch (e) { console.warn(e); }
+
+        tapZone.style.background = 'linear-gradient(135deg,#f59e0b,#f43f5e)';
+        tapZone.innerHTML = '<div style="font-size:80px;text-align:center;">✅</div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:#fff;text-align:center;margin-top:8px;">Tapped!</div>';
       };
 
       tapZone.addEventListener('click', doTap);
@@ -89,14 +96,15 @@
     },
 
     showTapFeedback(data) {
-      // Don't replace UI; just flash
-      const label = data.userId === window.VDAuth?.getUser()?.id ? 'YOU' : 'OPPONENT';
+      const me = window.VDAuth?.getUser();
+      const mine = data.userId === me?.id;
+      const label = mine ? 'YOU' : 'OPPONENT';
       const flash = el('div', {
-        style: 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:12px 24px;background:rgba(0,0,0,0.85);border-radius:999px;color:#fff;font-weight:700;z-index:20;animation:popIn 400ms var(--ease-bounce);',
+        style: 'position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);padding:12px 24px;background:rgba(0,0,0,0.9);border-radius:999px;color:#fff;font-weight:700;z-index:20;font-size:14px;',
         text: `${label}: ${data.elapsed}ms`
       });
       this.container.appendChild(flash);
-      setTimeout(() => flash.remove(), 1200);
+      setTimeout(() => flash.remove(), 1500);
     },
 
     renderEarly() {
@@ -128,7 +136,7 @@
       this.container.appendChild(el('div', {
         style: 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;'
       }, [
-        el('div', { style: `font-size:80px;`, text: iWon ? '🏆' : '😔' }),
+        el('div', { style: 'font-size:80px;', text: iWon ? '🏆' : '😔' }),
         el('h2', {
           style: `font-family:var(--font-display);font-size:26px;margin-top:12px;color:${iWon ? 'var(--vd-green)' : 'var(--vd-rose)'};`,
           text: iWon ? 'You won the round!' : 'You lost the round'
@@ -150,9 +158,8 @@
     mount({ container, emit }) {
       this.container = container;
       this.emit = emit;
-      this.state = 'idle'; // idle | timing | stopped
+      this.state = 'idle';
       this.startTime = null;
-      this.timerInterval = null;
       this.renderIdle();
     },
 
@@ -176,7 +183,7 @@
     startTimer() {
       this.state = 'timing';
       this.startTime = Date.now();
-      this.emit('start');
+      try { this.emit('start', {}); } catch {}
       this.renderTiming();
     },
 
@@ -198,9 +205,10 @@
     },
 
     stopTimer() {
+      if (this.state !== 'timing') return;
       this.state = 'stopped';
       const elapsed = Date.now() - this.startTime;
-      this.emit('stop');
+      try { this.emit('stop', {}); } catch {}
 
       this.container.innerHTML = '';
       this.container.appendChild(el('div', {
@@ -217,9 +225,6 @@
     },
 
     onEvent(event, data) {
-      if (event === 'game:ten:started') {
-        // opponent started
-      }
       if (event === 'game:ten:stopped') {
         this.showResult(data);
       }
@@ -229,7 +234,7 @@
       const me = window.VDAuth?.getUser();
       const mine = data.userId === me?.id;
       const flash = el('div', {
-        style: `position:absolute;top:${mine ? '30%' : '70%'};left:50%;transform:translate(-50%,-50%);padding:10px 20px;background:${mine ? 'var(--grad-brand)' : 'rgba(255,255,255,0.1)'};border-radius:999px;color:#fff;font-weight:700;z-index:20;animation:popIn 400ms var(--ease-bounce);font-size:13px;`,
+        style: `position:absolute;top:${mine ? '30%' : '70%'};left:50%;transform:translate(-50%,-50%);padding:10px 20px;background:${mine ? 'var(--grad-brand)' : 'rgba(255,255,255,0.1)'};border-radius:999px;color:#fff;font-weight:700;z-index:20;font-size:13px;`,
         text: `${mine ? 'You' : 'Opponent'}: ${(data.elapsed / 1000).toFixed(3)}s (${data.score} pts)`
       });
       this.container.appendChild(flash);
@@ -237,7 +242,6 @@
     },
 
     unmount() {
-      clearInterval(this.timerInterval);
       this.container = null;
       this.emit = null;
     }
@@ -289,7 +293,7 @@
       }
     },
 
-    renderGrid(showTargets, flashMs) {
+    renderGrid(showTargets) {
       this.container.innerHTML = '';
 
       const grid = el('div', {
@@ -331,20 +335,27 @@
         grid
       ]);
       this.container.appendChild(wrapper);
+
+      if (!showTargets && this.revealed && this.selected.size > 0) {
+        const submitBtn = el('button', {
+          class: 'btn btn-primary',
+          style: 'margin-top:16px;',
+          text: `Submit (${this.selected.size} selected)`,
+          onclick: () => this.submit()
+        });
+        wrapper.appendChild(submitBtn);
+      }
     },
 
     toggleCell(idx) {
-      if (this.selected.has(idx)) {
-        this.selected.delete(idx);
-      } else {
-        this.selected.add(idx);
-      }
-      this.renderGrid(false, 0);
+      if (this.selected.has(idx)) this.selected.delete(idx);
+      else this.selected.add(idx);
+      this.renderGrid(false);
     },
 
     submit() {
       const arr = Array.from(this.selected).sort((a, b) => a - b);
-      this.emit('guess', { cells: arr });
+      try { this.emit('guess', { cells: arr }); } catch {}
       this.revealed = false;
       this.container.innerHTML = '';
       this.container.appendChild(el('div', {
@@ -360,7 +371,7 @@
       const me = window.VDAuth?.getUser();
       const mine = data.userId === me?.id;
       const flash = el('div', {
-        style: 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:16px 24px;background:rgba(0,0,0,0.9);border-radius:14px;color:#fff;z-index:20;animation:popIn 400ms var(--ease-bounce);text-align:center;',
+        style: 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:16px 24px;background:rgba(0,0,0,0.9);border-radius:14px;color:#fff;z-index:20;text-align:center;',
       }, [
         el('div', { style: 'font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);', text: mine ? 'You' : 'Opponent' }),
         el('div', { style: 'font-family:var(--font-display);font-size:24px;font-weight:800;', text: `+${data.score} pts` }),
