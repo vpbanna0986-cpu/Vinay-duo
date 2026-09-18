@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   VINAY DUO — Game UI Engine (shared for all 29 games)
+   VINAY DUO — Game UI Engine (Final)
    Made by VP
    ═══════════════════════════════════════════════════════ */
 
@@ -22,15 +22,12 @@
 
   const registry = {};
 
-  function register(key, module) {
-    registry[key] = module;
-  }
-
+  function register(key, module) { registry[key] = module; }
   function getOverlay() { return $('#game-overlay'); }
 
   function openOverlay() {
     const ov = getOverlay();
-    if (!ov) { console.error('[gameUI] #game-overlay not found'); return; }
+    if (!ov) return;
     ov.innerHTML = '';
     ov.classList.add('active');
     ov.setAttribute('aria-hidden', 'false');
@@ -107,27 +104,13 @@
 
   async function start(launchPayload) {
     const { sessionId, gameKey, playerAId, playerBId } = launchPayload || {};
+    if (!sessionId || !gameKey) return;
 
-    console.log('[gameUI] start called:', launchPayload);
-
-    if (!sessionId) {
-      console.error('[gameUI] start called without sessionId');
-      return;
-    }
-    if (!gameKey) {
-      console.error('[gameUI] start called without gameKey');
-      return;
-    }
-
-    // Close any open modal
     const modalRoot = document.getElementById('modal-root');
-    if (modalRoot) {
-      modalRoot.classList.remove('active');
-      modalRoot.innerHTML = '';
-    }
+    if (modalRoot) { modalRoot.classList.remove('active'); modalRoot.innerHTML = ''; }
 
     const me = window.VDAuth?.getUser();
-    if (!me) { console.error('[gameUI] no current user'); return; }
+    if (!me) return;
 
     state.sessionId = sessionId;
     state.gameKey = gameKey;
@@ -157,22 +140,15 @@
       body.appendChild(el('div', { class: 'empty', style: 'margin:auto;' }, [
         el('div', { class: 'empty-icon', text: '🚧' }),
         el('div', { class: 'empty-title', text: state.gameTitle }),
-        el('div', { class: 'empty-text', text: 'UI for this game is coming soon.' })
+        el('div', { class: 'empty-text', text: 'UI coming soon.' })
       ]));
       return;
     }
 
     state.currentGame = module;
     try {
-      module.mount({
-        engine: getEngineAPI(),
-        container: body,
-        emitAction: emitAction
-      });
-      console.log('[gameUI] mounted module:', gameKey);
-    } catch (e) {
-      console.error('[gameUI] mount failed', e);
-    }
+      module.mount({ engine: getEngineAPI(), container: body, emitAction: emitAction });
+    } catch (e) { console.error('[gameUI] mount failed', e); }
   }
 
   function getEngineAPI() {
@@ -188,17 +164,31 @@
     };
   }
 
+  // ✅ RELIABLE — HTTP POST for critical actions
   function emitAction(action, payload) {
-    // ✅ Safe check — prevent crash if socket not ready
-    if (!window.VDSocket || !window.VDSocket.state?.connected) {
-      console.warn('[gameUI] cannot emit — socket not connected');
-      return Promise.resolve({ ok: false, error: 'NOT_CONNECTED' });
-    }
-    if (!state.sessionId) {
-      console.warn('[gameUI] cannot emit — no sessionId');
-      return Promise.resolve({ ok: false, error: 'NO_SESSION' });
-    }
-    return window.VDSocket.Actions.gameAction(state.sessionId, action, payload || {});
+    if (!state.sessionId) return Promise.resolve({ ok: false, error: 'NO_SESSION' });
+
+    const token = window.VDApi?.Token?.get() || '';
+    const url = '/api/games/action';
+
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        action,
+        payload: payload || {}
+      })
+    })
+    .then(r => r.json())
+    .catch(e => {
+      console.warn('[gameUI] action failed:', e);
+      return { ok: false, error: 'NETWORK' };
+    });
   }
 
   function onResult(result) {
@@ -228,13 +218,25 @@
       otherName: other?.display_name || 'Friend',
       emoji: outcome === 'win' ? '🏆' : outcome === 'tie' ? '🤝' : '💫',
       onRematch: () => {
-        if (window.VDSocket) {
-          window.VDSocket.Actions.challengeSend(result.gameKey);
-        }
+        // ✅ Reset state first
+        state.active = false;
+        state.sessionId = null;
+        state.currentGame = null;
+
+        // ✅ Send new challenge after small delay
+        setTimeout(() => {
+          if (window.VDSocket?.Actions?.challengeSend) {
+            window.VDSocket.Actions.challengeSend(result.gameKey).then(res => {
+              if (!res?.ok) toast(res?.error || 'Rematch failed', 'error');
+              else toast('Rematch sent!', 'success');
+            });
+          }
+        }, 300);
       },
       onExit: () => {
         state.active = false;
         state.sessionId = null;
+        state.currentGame = null;
       }
     });
 
@@ -253,10 +255,11 @@
     if (state.currentGame?.unmount) {
       try { state.currentGame.unmount(); } catch {}
     }
-    await window.VDSocket.Actions.gameCancel(state.sessionId);
+    try { await window.VDSocket.Actions.gameCancel(state.sessionId); } catch {}
     closeOverlay();
     state.active = false;
     state.sessionId = null;
+    state.currentGame = null;
   }
 
   function bindRealtime() {
@@ -281,53 +284,43 @@
       }
       closeOverlay();
       state.active = false;
+      state.currentGame = null;
       toast('Game cancelled', 'info');
     });
 
-    // Forward all per-game events to active module
     const knownEvents = [
-      'game:reaction:wait', 'game:reaction:go', 'game:reaction:tap', 'game:reaction:early',
-      'game:reaction:timeout', 'game:reaction:round-result',
-      'game:ten:ready', 'game:ten:started', 'game:ten:stopped',
-      'game:flash:show', 'game:flash:hide', 'game:flash:result', 'game:flash:timeout',
-      'game:memory:start', 'game:memory:flip',
-      'game:sequence:show', 'game:sequence:hide', 'game:sequence:tap', 'game:sequence:complete', 'game:sequence:timeout',
-      'game:numrecall:show', 'game:numrecall:hide', 'game:numrecall:result', 'game:numrecall:reveal', 'game:numrecall:timeout',
-      'game:math:question', 'game:math:correct', 'game:math:wrong', 'game:math:round-end', 'game:math:timeout',
-      'game:odd:show', 'game:odd:correct', 'game:odd:wrong', 'game:odd:round-end', 'game:odd:timeout',
-      'game:pattern:show', 'game:pattern:correct', 'game:pattern:wrong', 'game:pattern:round-end', 'game:pattern:timeout',
-      'game:emojimem:show', 'game:emojimem:hide', 'game:emojimem:result', 'game:emojimem:reveal', 'game:emojimem:timeout',
-      'game:scramble:show', 'game:scramble:correct', 'game:scramble:wrong', 'game:scramble:round-end', 'game:scramble:timeout',
-      'game:emojiguess:show', 'game:emojiguess:correct', 'game:emojiguess:wrong', 'game:emojiguess:round-end', 'game:emojiguess:timeout',
-      'game:guessword:show', 'game:guessword:correct', 'game:guessword:wrong', 'game:guessword:round-end', 'game:guessword:timeout',
-      'game:describe:start', 'game:describe:your-word', 'game:describe:guesser-turn', 'game:describe:correct', 'game:describe:wrong', 'game:describe:skipped', 'game:describe:timeout',
-      'game:sound:play', 'game:sound:correct', 'game:sound:wrong', 'game:sound:round-end', 'game:sound:timeout',
-      'game:draw:start', 'game:draw:your-word', 'game:draw:stroke', 'game:draw:clear', 'game:draw:correct', 'game:draw:wrong', 'game:draw:timeout',
-      'game:wkw:start', 'game:wkw:subject-ready', 'game:wkw:guesser-ready', 'game:wkw:subject-locked', 'game:wkw:guesser-locked', 'game:wkw:result',
-      'game:rps:start', 'game:rps:opponent-picked', 'game:rps:result',
-      'game:ttt:start', 'game:ttt:move', 'game:ttt:win', 'game:ttt:tie', 'game:ttt:timeout',
-      'game:c4:start', 'game:c4:drop', 'game:c4:win', 'game:c4:tie', 'game:c4:timeout',
-      'game:numbattle:start', 'game:numbattle:feedback', 'game:numbattle:opponent-guessed', 'game:numbattle:correct', 'game:numbattle:round-end', 'game:numbattle:timeout',
-      'game:hl:start', 'game:hl:result',
-      'game:quiz:question', 'game:quiz:your-answer', 'game:quiz:result',
-      'game:rchallenge:start', 'game:rchallenge:marked-done', 'game:rchallenge:result', 'game:rchallenge:timeout',
-      'game:friendquiz:start', 'game:friendquiz:locked', 'game:friendquiz:self-reveal', 'game:friendquiz:result',
-      'game:likely:start', 'game:likely:locked', 'game:likely:result',
-      'game:tot:start', 'game:tot:locked', 'game:tot:result',
-      'game:wyr:start', 'game:wyr:locked', 'game:wyr:result',
-      'game:truth:start', 'game:truth:locked', 'game:truth:result'
+      'game:reaction:wait','game:reaction:go','game:reaction:tap','game:reaction:early','game:reaction:round-result',
+      'game:ten:ready','game:ten:started','game:ten:stopped',
+      'game:flash:show','game:flash:hide','game:flash:result','game:flash:timeout',
+      'game:memory:start','game:memory:flip',
+      'game:sequence:show','game:sequence:hide','game:sequence:tap','game:sequence:complete','game:sequence:timeout',
+      'game:numrecall:show','game:numrecall:hide','game:numrecall:result','game:numrecall:reveal','game:numrecall:timeout',
+      'game:math:question','game:math:correct','game:math:wrong','game:math:round-end','game:math:timeout',
+      'game:odd:show','game:odd:correct','game:odd:wrong','game:odd:round-end','game:odd:timeout',
+      'game:pattern:show','game:pattern:correct','game:pattern:wrong','game:pattern:round-end','game:pattern:timeout',
+      'game:emojimem:show','game:emojimem:hide','game:emojimem:result','game:emojimem:reveal','game:emojimem:timeout',
+      'game:scramble:show','game:scramble:correct','game:scramble:wrong','game:scramble:round-end','game:scramble:timeout',
+      'game:emojiguess:show','game:emojiguess:correct','game:emojiguess:wrong','game:emojiguess:round-end','game:emojiguess:timeout',
+      'game:guessword:show','game:guessword:correct','game:guessword:wrong','game:guessword:round-end','game:guessword:timeout',
+      'game:describe:start','game:describe:your-word','game:describe:guesser-turn','game:describe:correct','game:describe:wrong','game:describe:skipped','game:describe:timeout',
+      'game:sound:play','game:sound:correct','game:sound:wrong','game:sound:round-end','game:sound:timeout',
+      'game:draw:start','game:draw:your-word','game:draw:stroke','game:draw:clear','game:draw:correct','game:draw:wrong','game:draw:timeout',
+      'game:wkw:start','game:wkw:subject-ready','game:wkw:guesser-ready','game:wkw:subject-locked','game:wkw:guesser-locked','game:wkw:result',
+      'game:rps:start','game:rps:opponent-picked','game:rps:result',
+      'game:ttt:start','game:ttt:move','game:ttt:win','game:ttt:tie','game:ttt:timeout',
+      'game:c4:start','game:c4:drop','game:c4:win','game:c4:tie','game:c4:timeout',
+      'game:numbattle:start','game:numbattle:feedback','game:numbattle:opponent-guessed','game:numbattle:correct','game:numbattle:round-end','game:numbattle:timeout',
+      'game:hl:start','game:hl:result',
+      'game:quiz:question','game:quiz:your-answer','game:quiz:result',
+      'game:rchallenge:start','game:rchallenge:marked-done','game:rchallenge:result','game:rchallenge:timeout',
+      'game:friendquiz:start','game:friendquiz:locked','game:friendquiz:self-reveal','game:friendquiz:result',
+      'game:likely:start','game:likely:locked','game:likely:result',
+      'game:tot:start','game:tot:locked','game:tot:result',
+      'game:wyr:start','game:wyr:locked','game:wyr:result',
+      'game:truth:start','game:truth:locked','game:truth:result'
     ];
 
     knownEvents.forEach(evt => {
-      S.on(evt, (d) => {
-        if (state.currentGame?.onEvent) {
-          try { state.currentGame.onEvent(evt, d); } catch (e) { console.warn('[game]', evt, e); }
-        }
-      });
-    });
-
-    // Lifecycle events (also forwarded to module)
-    ['game:state', 'game:countdown', 'game:playing', 'game:round-start'].forEach(evt => {
       S.on(evt, (d) => {
         if (state.currentGame?.onEvent) {
           try { state.currentGame.onEvent(evt, d); } catch (e) { console.warn('[game]', evt, e); }
@@ -338,12 +331,5 @@
 
   function init() { bindRealtime(); }
 
-  window.VDGameUI = {
-    init,
-    register,
-    start,
-    close: closeOverlay,
-    emitAction,
-    state
-  };
+  window.VDGameUI = { init, register, start, close: closeOverlay, emitAction, state };
 })();
